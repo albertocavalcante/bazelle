@@ -1,0 +1,20 @@
+# Gazelle-Kotlin Extension
+
+load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+# Custom Gazelle binary with Kotlin support
+gazelle_binary(
+    name = "gazelle-kotlin",
+    languages = [
+        "@gazelle//language/proto",
+        "//gazelle-kotlin/kotlin:kotlin",
+    ],
+)
+
+# Gazelle target using our custom binary
+gazelle(
+    name = "gazelle",
+    gazelle = ":gazelle-kotlin",
+)

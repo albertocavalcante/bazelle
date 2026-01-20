@@ -1,0 +1,11 @@
+# Bazel
+bazel-*
+MODULE.bazel.lock
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store

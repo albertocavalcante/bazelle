@@ -1,0 +1,25 @@
+"""
+Bazelle - Gazelle language extensions monorepo.
+
+This monorepo contains Gazelle extensions for various programming languages,
+with Copybara sync to standalone repos for BCR publishing.
+"""
+
+module(
+    name = "bazelle",
+    version = "0.1.0",
+    compatibility_level = 1,
+)
+
+# Core Bazel dependencies
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "rules_go", version = "0.59.0")
+bazel_dep(name = "gazelle", version = "0.47.0")
+
+# Go SDK configuration for Gazelle extensions
+go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
+go_sdk.download(version = "1.23.5")
+use_repo(go_sdk, "go_toolchains")
+
+# Register Go toolchains
+register_toolchains("@go_toolchains//:all")

@@ -1,0 +1,20 @@
+# Bazelle - Gazelle Language Extensions Monorepo
+
+load("@gazelle//:def.bzl", "gazelle")
+
+package(default_visibility = ["//visibility:public"])
+
+# Gazelle directives
+# gazelle:prefix github.com/albertocavalcante/bazelle
+# gazelle:exclude .git
+
+gazelle(
+    name = "gazelle",
+    gazelle = "@gazelle//cmd/gazelle",
+)
+
+gazelle(
+    name = "gazelle-update-repos",
+    command = "update-repos",
+    gazelle = "@gazelle//cmd/gazelle",
+)
