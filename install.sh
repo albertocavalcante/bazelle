@@ -1,6 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 # Bazelle installer script
-# Usage: curl -sSL https://raw.githubusercontent.com/albertocavalcante/bazelle/main/install.sh | sh
+# Usage: curl -sSL https://raw.githubusercontent.com/albertocavalcante/bazelle/main/install.sh | bash
 #
 # Environment variables:
 #   BAZELLE_VERSION  - Version to install (default: latest)
@@ -9,7 +9,6 @@
 set -e
 
 REPO="albertocavalcante/bazelle"
-BINARY_NAME="bazelle"
 
 # Colors (disabled if not a terminal)
 if [ -t 1 ]; then

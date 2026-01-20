@@ -51,10 +51,7 @@ pre-commit:
 
     shell-lint:
       glob: '**/*.sh'
-      run: |
-        if command -v shellcheck &> /dev/null; then
-          shellcheck {staged_files}
-        fi
+      run: shellcheck {staged_files}
 
 commit-msg:
   commands:
