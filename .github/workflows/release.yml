@@ -17,6 +17,12 @@ jobs:
           - os: ubuntu-latest
             name: linux-amd64
             artifact: bazelle-linux-amd64
+          - os: ubuntu-24.04-arm
+            name: linux-arm64
+            artifact: bazelle-linux-arm64
+          - os: macos-13
+            name: darwin-amd64
+            artifact: bazelle-darwin-amd64
           - os: macos-14
             name: darwin-arm64
             artifact: bazelle-darwin-arm64
