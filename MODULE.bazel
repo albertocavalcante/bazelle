@@ -28,7 +28,7 @@ bazel_dep(name = "gazelle", version = "0.47.0")
 
 # Go SDK configuration
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
-go_sdk.download(version = "1.23.5")
+go_sdk.download(version = "1.25.6")
 use_repo(go_sdk, "go_toolchains")
 register_toolchains("@go_toolchains//:all")
 
