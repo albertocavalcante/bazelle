@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "nilaway",
+    srcs = ["nilaway.go"],
+    importpath = "github.com/albertocavalcante/bazelle/tools/nogo/nilaway",
+    visibility = ["//visibility:public"],
+    deps = ["@org_uber_go_nilaway//:nilaway"],
+)

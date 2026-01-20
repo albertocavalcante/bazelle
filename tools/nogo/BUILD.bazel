@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "nogo")
+
+nogo(
+    name = "bazelle_nogo",
+    config = "nogo.json",
+    visibility = ["//visibility:public"],
+    deps = [
+        # Stdlib analyzers
+        "//tools/nogo/copylock",
+        "//tools/nogo/errorsas",
+        "//tools/nogo/lostcancel",
+        "//tools/nogo/printf",
+        "//tools/nogo/structtag",
+        "//tools/nogo/unmarshal",
+        "//tools/nogo/unusedresult",
+        # External analyzers
+        "//tools/nogo/errcheck",
+        "//tools/nogo/nilaway",
+    ],
+)

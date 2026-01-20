@@ -1,0 +1,25 @@
+{
+  "_base": {
+    "description": "Skip external dependency sources",
+    "exclude_files": {
+      "(^|/)external/": "exclude third-party code from nogo"
+    }
+  },
+  "copylock": {},
+  "errcheck": {
+    "exclude_files": {
+      "_test\\.go$": "test files often ignore errors intentionally"
+    }
+  },
+  "errorsas": {},
+  "lostcancel": {},
+  "nilaway": {
+    "exclude_files": {
+      "_test\\.go$": "test files use t.Fatal which nilaway doesn't understand"
+    }
+  },
+  "printf": {},
+  "structtag": {},
+  "unmarshal": {},
+  "unusedresult": {}
+}

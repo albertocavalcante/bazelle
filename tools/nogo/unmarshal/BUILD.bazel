@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "unmarshal",
+    srcs = ["unmarshal.go"],
+    importpath = "github.com/albertocavalcante/bazelle/tools/nogo/unmarshal",
+    visibility = ["//visibility:public"],
+    deps = ["@org_golang_x_tools//go/analysis/passes/unmarshal"],
+)

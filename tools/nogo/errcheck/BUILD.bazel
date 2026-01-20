@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "errcheck",
+    srcs = ["errcheck.go"],
+    importpath = "github.com/albertocavalcante/bazelle/tools/nogo/errcheck",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_kisielk_errcheck//errcheck"],
+)

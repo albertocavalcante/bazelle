@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "unusedresult",
+    srcs = ["unusedresult.go"],
+    importpath = "github.com/albertocavalcante/bazelle/tools/nogo/unusedresult",
+    visibility = ["//visibility:public"],
+    deps = ["@org_golang_x_tools//go/analysis/passes/unusedresult"],
+)
