@@ -12,7 +12,14 @@ common --color=yes
 common --verbose_failures
 
 # Go configuration
-build --@rules_go//go/config:pure
+# CGO enabled (required for tree-sitter used by Python gazelle)
+# Using host C/C++ toolchain for now (non-hermetic)
+# TODO: Configure hermetic C/C++ toolchains for reproducible cross-compilation
+#       See: https://github.com/aspect-build/gcc-toolchain or llvm toolchains
+# build --@rules_go//go/config:pure  # DISABLED: breaks tree-sitter CGO deps
+
+# Java configuration - use remote JDK for hermetic builds
+build --java_runtime_version=remotejdk_21
 
 # Test configuration
 test --test_output=errors

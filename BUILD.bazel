@@ -1,20 +1,62 @@
-# Bazelle - Gazelle Language Extensions Monorepo
+# Bazelle - Polyglot Gazelle CLI
+#
+# This is the root BUILD file for the bazelle monorepo.
+# Run `bazel run //:gazelle` to update BUILD files.
 
 load("@gazelle//:def.bzl", "gazelle")
 
 package(default_visibility = ["//visibility:public"])
 
-# Gazelle directives
-# gazelle:prefix github.com/albertocavalcante/bazelle
-# gazelle:exclude .git
+# ==============================================================================
+# Gazelle Configuration
+# ==============================================================================
 
+# Go prefix for this module
+# gazelle:prefix github.com/albertocavalcante/bazelle
+
+# Exclude directories
+# gazelle:exclude .git
+# gazelle:exclude bazel-*
+
+# ==============================================================================
+# Kotlin Extension Configuration
+# ==============================================================================
+# gazelle:kotlin_enabled true
+
+# ==============================================================================
+# Java Extension Configuration (contrib_rules_jvm)
+# DISABLED: contrib_rules_jvm incompatible with Bazel 9 (ProtoInfo issue)
+# TODO: Re-enable when contrib_rules_jvm is updated
+# ==============================================================================
+# gazelle:java_extension enabled
+# gazelle:java_module_granularity package
+
+# ==============================================================================
+# Python Extension Configuration (rules_python)
+# ==============================================================================
+# gazelle:python_extension enabled
+
+# ==============================================================================
+# C++ Extension Configuration (gazelle_cc)
+# ==============================================================================
+# gazelle:cc_generate true
+
+# ==============================================================================
+# Gazelle Targets
+# ==============================================================================
+
+# Main gazelle target using the polyglot bazelle binary.
+# Usage: bazel run //:gazelle
 gazelle(
     name = "gazelle",
-    gazelle = "@gazelle//cmd/gazelle",
+    gazelle = "//cmd/bazelle",
 )
 
+# Update repos target for Go dependency management.
+# Usage: bazel run //:gazelle-update-repos
 gazelle(
     name = "gazelle-update-repos",
+    args = ["-from_file=go.mod"],
     command = "update-repos",
-    gazelle = "@gazelle//cmd/gazelle",
+    gazelle = "//cmd/bazelle",
 )

@@ -1,0 +1,26 @@
+diff --git a/MODULE.bazel b/MODULE.bazel
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -49,16 +49,18 @@ use_repo(
+ 
+ # There is a `grpc_java` bazel_dep we could use, but that pollutes the main
+ # `maven` namespace and patches `protobuf` too. Instead, we pull the http
+-# archive and patch it so we can use it in the one target we care about
++# archive and patch it so we can use it in the one target we care about.
++# Patched to use grpc-java 1.78.0 for Bazel 9 compatibility (ProtoInfo fix).
++# See: https://github.com/grpc/grpc-java/issues/12315
+ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+ 
+ http_archive(
+     name = "grpc-java",
+-    integrity = "sha256-KUKla3lEeaC8HA5pA5ya5hXxyznQ468SrzXA6zvXP98=",
++    integrity = "sha256-zhr831Ew50E46ToPnwu3ckFhDX8AyYf0bf/F+wg/bwo=",
+     patch_args = ["-p1"],
+     patches = [
+         "//third_party:grpc-java.patch",
+     ],
+-    strip_prefix = "grpc-java-1.71.0",
+-    url = "https://github.com/grpc/grpc-java/archive/refs/tags/v1.71.0.tar.gz",
++    strip_prefix = "grpc-java-1.78.0",
++    url = "https://github.com/grpc/grpc-java/archive/refs/tags/v1.78.0.tar.gz",
+ )

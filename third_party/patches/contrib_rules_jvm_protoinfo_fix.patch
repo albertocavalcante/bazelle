@@ -1,0 +1,21 @@
+diff --git a/third_party/grpc-java.patch b/third_party/grpc-java.patch
+--- a/third_party/grpc-java.patch
++++ b/third_party/grpc-java.patch
+@@ -1,3 +1,17 @@
++diff --git a/java_grpc_library.bzl b/java_grpc_library.bzl
++--- a/java_grpc_library.bzl
+++++ b/java_grpc_library.bzl
++@@ -1,3 +1,10 @@
+++# Bazelle patch: Load ProtoInfo from rules_proto for Bazel 9 compatibility
+++# Built-in ProtoInfo was removed in Bazel 9, must load from starlark
+++# See: https://github.com/grpc/grpc-java/issues/12315
+++load("@rules_proto//proto:defs.bzl", "ProtoInfo")
+++
+++# Original file content follows:
+++
++ """Build rule for java_grpc_library
++ 
++ java_grpc_library generates Java code for gRPC clients and servers using the
+ diff --git a/api/BUILD.bazel b/api/BUILD.bazel
+ --- a/api/BUILD.bazel
+ +++ b/api/BUILD.bazel

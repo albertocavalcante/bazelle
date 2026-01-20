@@ -1,0 +1,5 @@
+# Third-party patches for Bazel 9 compatibility
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(glob(["*.patch"]))
