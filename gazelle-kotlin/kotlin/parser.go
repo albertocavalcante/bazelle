@@ -4,13 +4,25 @@ import (
 	"bufio"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 )
 
 // KotlinParser parses Kotlin source files to extract metadata.
 type KotlinParser struct {
-	packageRegex *regexp.Regexp
-	importRegex  *regexp.Regexp
+	// Regex patterns for parsing
+	packageRegex      *regexp.Regexp
+	importRegex       *regexp.Regexp
+	importAliasRegex  *regexp.Regexp
+	starImportRegex   *regexp.Regexp
+	annotationRegex   *regexp.Regexp
+	declarationRegex  *regexp.Regexp
+
+	// FQN scanner for detecting inline fully qualified names
+	fqnScanner *FQNScanner
+
+	// Configuration
+	enableFQNScanning bool
 }
 
 // ParseResult contains the parsed metadata from a Kotlin file.
@@ -18,100 +30,208 @@ type ParseResult struct {
 	// Package is the package declaration (e.g., "com.example.myapp").
 	Package string
 
-	// Imports is a list of import statements.
+	// Imports is a list of explicit import statements.
 	Imports []string
+
+	// StarImports is a list of star imports (e.g., "com.example.*").
+	StarImports []string
+
+	// ImportAliases maps alias names to their original imports.
+	// For "import com.example.Foo as Bar", this would be {"Bar": "com.example.Foo"}.
+	ImportAliases map[string]string
+
+	// FQNs is a list of fully qualified names found in the code body.
+	// These are types used inline without being imported.
+	FQNs []string
+
+	// AllDependencies combines Imports and FQNs for resolution.
+	AllDependencies []string
+
+	// Annotations contains file-level annotations (e.g., "@file:JvmName").
+	Annotations []string
 
 	// FilePath is the path to the parsed file.
 	FilePath string
+
+	// CodeStartLine is the line number where code starts (after imports).
+	CodeStartLine int
 }
 
-// NewParser creates a new KotlinParser.
-func NewParser() *KotlinParser {
-	return &KotlinParser{
-		// Match: package com.example.myapp
-		packageRegex: regexp.MustCompile(`^\s*package\s+([\w.]+)`),
-		// Match: import com.example.SomeClass
-		// Also match: import com.example.SomeClass as Alias
-		importRegex: regexp.MustCompile(`^\s*import\s+([\w.]+(?:\.\*)?)`),
+// ParserOption configures the parser.
+type ParserOption func(*KotlinParser)
+
+// WithFQNScanning enables or disables FQN scanning in the code body.
+func WithFQNScanning(enabled bool) ParserOption {
+	return func(p *KotlinParser) {
+		p.enableFQNScanning = enabled
 	}
+}
+
+// NewParser creates a new KotlinParser with the given options.
+func NewParser(opts ...ParserOption) *KotlinParser {
+	p := &KotlinParser{
+		// Match: package com.example.myapp
+		// Also handles: package `com.example.reserved`
+		packageRegex: regexp.MustCompile(`^\s*package\s+([\w.]+|` + "`[^`]+`" + `)`),
+
+		// Match: import com.example.SomeClass
+		// Captures the import path (without alias)
+		importRegex: regexp.MustCompile(`^\s*import\s+([\w.]+)`),
+
+		// Match: import com.example.SomeClass as Alias
+		// Captures: [full match, import path, alias]
+		importAliasRegex: regexp.MustCompile(`^\s*import\s+([\w.]+)\s+as\s+(\w+)`),
+
+		// Match: import com.example.*
+		starImportRegex: regexp.MustCompile(`^\s*import\s+([\w.]+)\.\*`),
+
+		// Match file-level annotations: @file:JvmName("Foo")
+		annotationRegex: regexp.MustCompile(`^\s*@file\s*:\s*(\w+)`),
+
+		// Match start of declarations (to know when imports section ends)
+		declarationRegex: regexp.MustCompile(`^\s*(class|object|interface|fun|val|var|annotation|enum|sealed|data|inline|value|suspend|private|internal|public|protected|abstract|open|expect|actual|typealias)\s`),
+
+		fqnScanner:        NewFQNScanner(),
+		enableFQNScanning: true, // enabled by default
+	}
+
+	for _, opt := range opts {
+		opt(p)
+	}
+
+	return p
 }
 
 // ParseFile parses a Kotlin source file and returns metadata.
 func (p *KotlinParser) ParseFile(path string) (*ParseResult, error) {
-	file, err := os.Open(path)
+	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
+	return p.ParseContent(string(content), path)
+}
+
+// ParseContent parses Kotlin source code content and returns metadata.
+func (p *KotlinParser) ParseContent(content string, path string) (*ParseResult, error) {
 	result := &ParseResult{
-		FilePath: path,
-		Imports:  make([]string, 0),
+		FilePath:      path,
+		Imports:       make([]string, 0),
+		StarImports:   make([]string, 0),
+		ImportAliases: make(map[string]string),
+		FQNs:          make([]string, 0),
+		Annotations:   make([]string, 0),
 	}
 
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(strings.NewReader(content))
 	inMultilineComment := false
+	lineNum := 0
+	importSectionEnded := false
 
 	for scanner.Scan() {
+		lineNum++
 		line := scanner.Text()
 
-		// Skip multi-line comments
-		if strings.Contains(line, "/*") {
+		// Track multi-line comments
+		commentStart := strings.Index(line, "/*")
+		commentEnd := strings.Index(line, "*/")
+
+		if commentStart >= 0 && commentEnd < 0 {
 			inMultilineComment = true
 		}
-		if strings.Contains(line, "*/") {
+		if commentEnd >= 0 {
 			inMultilineComment = false
-			continue
+			// Continue processing the rest of the line after */
+			if commentEnd+2 < len(line) {
+				line = line[commentEnd+2:]
+			} else {
+				continue
+			}
 		}
 		if inMultilineComment {
 			continue
 		}
 
-		// Skip single-line comments
+		// Remove inline comments
+		if idx := strings.Index(line, "//"); idx >= 0 {
+			line = line[:idx]
+		}
+
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "//") {
+		if trimmed == "" {
+			continue
+		}
+
+		// Parse file-level annotations (before package declaration)
+		if result.Package == "" && strings.HasPrefix(trimmed, "@file") {
+			if matches := p.annotationRegex.FindStringSubmatch(line); len(matches) > 1 {
+				result.Annotations = append(result.Annotations, matches[1])
+			}
 			continue
 		}
 
 		// Try to match package declaration
 		if result.Package == "" {
 			if matches := p.packageRegex.FindStringSubmatch(line); len(matches) > 1 {
-				result.Package = matches[1]
+				result.Package = cleanPackageName(matches[1])
+				continue
 			}
 		}
 
-		// Try to match import statements
-		if matches := p.importRegex.FindStringSubmatch(line); len(matches) > 1 {
-			result.Imports = append(result.Imports, matches[1])
+		// Check if we've reached the end of imports section
+		if p.declarationRegex.MatchString(line) {
+			if !importSectionEnded {
+				importSectionEnded = true
+				result.CodeStartLine = lineNum
+			}
+			// Don't break - we might still want to scan for FQNs
+			continue
 		}
 
-		// Stop parsing after we've passed the imports section
-		// (imports must come before class/function declarations)
-		if strings.HasPrefix(trimmed, "class ") ||
-			strings.HasPrefix(trimmed, "object ") ||
-			strings.HasPrefix(trimmed, "interface ") ||
-			strings.HasPrefix(trimmed, "fun ") ||
-			strings.HasPrefix(trimmed, "val ") ||
-			strings.HasPrefix(trimmed, "var ") ||
-			strings.HasPrefix(trimmed, "annotation ") ||
-			strings.HasPrefix(trimmed, "enum ") ||
-			strings.HasPrefix(trimmed, "sealed ") ||
-			strings.HasPrefix(trimmed, "data ") ||
-			strings.HasPrefix(trimmed, "inline ") ||
-			strings.HasPrefix(trimmed, "suspend ") ||
-			strings.HasPrefix(trimmed, "private ") ||
-			strings.HasPrefix(trimmed, "internal ") ||
-			strings.HasPrefix(trimmed, "public ") ||
-			strings.HasPrefix(trimmed, "protected ") ||
-			strings.HasPrefix(trimmed, "abstract ") ||
-			strings.HasPrefix(trimmed, "open ") {
-			break
+		// Don't parse imports if we're past the import section
+		if importSectionEnded {
+			continue
+		}
+
+		// Try to match star imports first (more specific)
+		if matches := p.starImportRegex.FindStringSubmatch(line); len(matches) > 1 {
+			result.StarImports = append(result.StarImports, matches[1])
+			continue
+		}
+
+		// Try to match import with alias
+		if matches := p.importAliasRegex.FindStringSubmatch(line); len(matches) > 2 {
+			importPath := matches[1]
+			alias := matches[2]
+			result.Imports = append(result.Imports, importPath)
+			result.ImportAliases[alias] = importPath
+			continue
+		}
+
+		// Try to match regular import
+		if matches := p.importRegex.FindStringSubmatch(line); len(matches) > 1 {
+			result.Imports = append(result.Imports, matches[1])
+			continue
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
+
+	// Set code start line if not already set
+	if result.CodeStartLine == 0 {
+		result.CodeStartLine = lineNum
+	}
+
+	// Scan for FQNs in the code body if enabled
+	if p.enableFQNScanning {
+		scanResult := p.fqnScanner.Scan(content, result.CodeStartLine-1)
+		result.FQNs = scanResult.FQNs
+	}
+
+	// Build combined dependencies list
+	result.AllDependencies = buildAllDependencies(result)
 
 	return result, nil
 }
@@ -129,6 +249,36 @@ func (p *KotlinParser) ParseFiles(paths []string) ([]*ParseResult, error) {
 	return results, nil
 }
 
+// buildAllDependencies combines imports and FQNs into a single list.
+func buildAllDependencies(result *ParseResult) []string {
+	depSet := make(map[string]bool)
+
+	// Add regular imports
+	for _, imp := range result.Imports {
+		depSet[imp] = true
+	}
+
+	// Add FQNs (these are already full paths)
+	for _, fqn := range result.FQNs {
+		depSet[fqn] = true
+	}
+
+	// Note: Star imports are handled separately during resolution
+	// since we don't know which specific classes are used
+
+	deps := make([]string, 0, len(depSet))
+	for dep := range depSet {
+		deps = append(deps, dep)
+	}
+	sort.Strings(deps)
+	return deps
+}
+
+// cleanPackageName removes backticks from package names.
+func cleanPackageName(name string) string {
+	return strings.Trim(name, "`")
+}
+
 // GetPackages returns unique packages from parse results.
 func GetPackages(results []*ParseResult) []string {
 	pkgSet := make(map[string]bool)
@@ -142,5 +292,91 @@ func GetPackages(results []*ParseResult) []string {
 	for pkg := range pkgSet {
 		packages = append(packages, pkg)
 	}
+	sort.Strings(packages)
 	return packages
+}
+
+// GetAllImports returns all unique imports from parse results.
+func GetAllImports(results []*ParseResult) []string {
+	importSet := make(map[string]bool)
+	for _, r := range results {
+		for _, imp := range r.Imports {
+			importSet[imp] = true
+		}
+	}
+
+	imports := make([]string, 0, len(importSet))
+	for imp := range importSet {
+		imports = append(imports, imp)
+	}
+	sort.Strings(imports)
+	return imports
+}
+
+// GetAllDependencies returns all unique dependencies (imports + FQNs) from parse results.
+func GetAllDependencies(results []*ParseResult) []string {
+	depSet := make(map[string]bool)
+	for _, r := range results {
+		for _, dep := range r.AllDependencies {
+			depSet[dep] = true
+		}
+	}
+
+	deps := make([]string, 0, len(depSet))
+	for dep := range depSet {
+		deps = append(deps, dep)
+	}
+	sort.Strings(deps)
+	return deps
+}
+
+// ImportInfo contains detailed information about an import.
+type ImportInfo struct {
+	// Path is the full import path (e.g., "com.example.Foo").
+	Path string
+
+	// Package is the package portion (e.g., "com.example").
+	Package string
+
+	// Name is the imported name (e.g., "Foo").
+	Name string
+
+	// Alias is the alias if present, empty otherwise.
+	Alias string
+
+	// IsStar indicates if this is a star import.
+	IsStar bool
+}
+
+// GetImportInfo returns detailed import information from a parse result.
+func GetImportInfo(result *ParseResult) []ImportInfo {
+	var infos []ImportInfo
+
+	// Regular imports
+	for _, imp := range result.Imports {
+		info := ImportInfo{
+			Path:    imp,
+			Package: ExtractPackageFromFQN(imp),
+			Name:    ExtractClassFromFQN(imp),
+		}
+		// Check if there's an alias for this import
+		for alias, path := range result.ImportAliases {
+			if path == imp {
+				info.Alias = alias
+				break
+			}
+		}
+		infos = append(infos, info)
+	}
+
+	// Star imports
+	for _, starImp := range result.StarImports {
+		infos = append(infos, ImportInfo{
+			Path:    starImp + ".*",
+			Package: starImp,
+			IsStar:  true,
+		})
+	}
+
+	return infos
 }

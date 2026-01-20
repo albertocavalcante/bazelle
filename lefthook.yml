@@ -1,0 +1,68 @@
+# Lefthook - Git Hooks Manager
+# https://github.com/evilmartians/lefthook
+#
+# Install: brew install lefthook && lefthook install
+
+pre-commit:
+  commands:
+    branch-check:
+      run: |
+        branch=$(git rev-parse --abbrev-ref HEAD)
+        if [ "$branch" = "main" ]; then
+          echo "Direct commits to main branch are forbidden!"
+          exit 1
+        fi
+
+    large-files:
+      run: |
+        max_size=1048576  # 1MB in bytes
+        for file in {staged_files}; do
+          if [ -f "$file" ]; then
+            size=$(wc -c < "$file" | tr -d ' ')
+            if [ "$size" -gt "$max_size" ]; then
+              echo "Error: $file is larger than 1MB ($size bytes)"
+              exit 1
+            fi
+          fi
+        done
+
+    bazel-lint:
+      glob: '**/{BUILD,BUILD.bazel,WORKSPACE,WORKSPACE.bazel,MODULE.bazel,*.bzl}'
+      run: buildifier -mode=check -lint=warn {staged_files}
+
+    go-fmt:
+      glob: '**/*.go'
+      run: gofmt -l {staged_files} | grep . && exit 1 || true
+
+    yaml-fmt:
+      glob: '**/*.{yml,yaml}'
+      exclude: 'MODULE.bazel.lock'
+      run: yamlfmt -lint {staged_files}
+
+    workflow-lint:
+      glob: '.github/workflows/*.{yml,yaml}'
+      run: |
+        if command -v ghalint &> /dev/null; then
+          ghalint run -c tools/lint/ghalint.yaml
+        fi
+        if command -v actionlint &> /dev/null; then
+          actionlint {staged_files}
+        fi
+
+    shell-lint:
+      glob: '**/*.sh'
+      run: |
+        if command -v shellcheck &> /dev/null; then
+          shellcheck {staged_files}
+        fi
+
+commit-msg:
+  commands:
+    conventional-commit:
+      run: |
+        commit_msg=$(head -n1 {1})
+        if ! echo "$commit_msg" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: .+$"; then
+          echo "Error: Commit message does not follow conventional commits format."
+          echo "Example: feat(kotlin): add FQN scanning"
+          exit 1
+        fi
