@@ -4,6 +4,7 @@
 # Run `bazel run //:gazelle` to update BUILD files.
 
 load("@gazelle//:def.bzl", "gazelle")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -59,4 +60,16 @@ gazelle(
     args = ["-from_file=go.mod"],
     command = "update-repos",
     gazelle = "//cmd/bazelle",
+)
+
+# ==============================================================================
+# Install Target
+# ==============================================================================
+
+# Install locally-built bazelle to ~/.local/bin (or INSTALL_DIR)
+# Usage: bazel run //:install
+sh_binary(
+    name = "install",
+    srcs = ["scripts/install-local.sh"],
+    data = ["//cmd/bazelle"],
 )
