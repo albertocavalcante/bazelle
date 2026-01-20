@@ -33,6 +33,7 @@ fi
 # Install
 info "Installing to ${INSTALL_DIR}..."
 mkdir -p "$INSTALL_DIR"
+rm -f "$INSTALL_DIR/bazelle"
 cp "$BINARY_PATH" "$INSTALL_DIR/bazelle"
 chmod +x "$INSTALL_DIR/bazelle"
 

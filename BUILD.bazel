@@ -70,6 +70,6 @@ gazelle(
 # Usage: bazel run //:install
 sh_binary(
     name = "install",
-    srcs = ["scripts/install-local.sh"],
+    srcs = ["//tools/scripts:install-local.sh"],
     data = ["//cmd/bazelle"],
 )
