@@ -352,6 +352,12 @@ type ImportInfo struct {
 func GetImportInfo(result *ParseResult) []ImportInfo {
 	var infos []ImportInfo
 
+	// Build reverse map: path -> alias (for efficient lookup)
+	pathToAlias := make(map[string]string, len(result.ImportAliases))
+	for alias, path := range result.ImportAliases {
+		pathToAlias[path] = alias
+	}
+
 	// Regular imports
 	for _, imp := range result.Imports {
 		info := ImportInfo{
@@ -359,12 +365,9 @@ func GetImportInfo(result *ParseResult) []ImportInfo {
 			Package: ExtractPackageFromFQN(imp),
 			Name:    ExtractClassFromFQN(imp),
 		}
-		// Check if there's an alias for this import
-		for alias, path := range result.ImportAliases {
-			if path == imp {
-				info.Alias = alias
-				break
-			}
+		// O(1) lookup for alias using reverse map
+		if alias, ok := pathToAlias[imp]; ok {
+			info.Alias = alias
 		}
 		infos = append(infos, info)
 	}

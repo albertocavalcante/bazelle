@@ -28,6 +28,11 @@ go_library(
 
 go_test(
     name = "kotlin_test",
-    srcs = ["parser_test.go"],
+    srcs = [
+        "config_test.go",
+        "generate_test.go",
+        "kinds_test.go",
+        "parser_test.go",
+    ],
     embed = [":kotlin"],
 )

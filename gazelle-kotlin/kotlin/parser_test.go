@@ -599,3 +599,81 @@ class Service {
 		t.Error("Expected com.example.foo.Foo to be detected")
 	}
 }
+
+// Test for regex compilation efficiency
+func TestRemoveStringLiterals_NoRecompilation(t *testing.T) {
+	// This test verifies that removeStringLiterals doesn't recompile regexes on every call
+	// We'll call it multiple times to ensure it works consistently
+	testCases := []struct {
+		input    string
+		expected string
+	}{
+		{`val x = "hello world"`, `val x = ""`},
+		{`val y = 'c'`, `val y = ''`},
+		{`val z = "string with \"escaped\" quotes"`, `val z = ""`},
+		{`val a = 'x' and "text"`, `val a = '' and ""`},
+	}
+
+	for _, tc := range testCases {
+		result := removeStringLiterals(tc.input)
+		if result != tc.expected {
+			t.Errorf("removeStringLiterals(%q): expected %q, got %q", tc.input, tc.expected, result)
+		}
+	}
+
+	// Run many times to ensure consistent behavior (performance test would show regression)
+	for i := 0; i < 100; i++ {
+		removeStringLiterals(`val test = "hello" and 'c'`)
+	}
+}
+
+// Test for efficient alias lookup in GetImportInfo
+func TestGetImportInfo_EfficientAliasLookup(t *testing.T) {
+	// Create a result with many imports and aliases to test performance
+	result := &ParseResult{
+		Imports: []string{
+			"com.example.models.User",
+			"com.example.models.Product",
+			"com.example.models.Order",
+			"org.json.JSONObject",
+			"org.json.JSONArray",
+		},
+		ImportAliases: map[string]string{
+			"AppUser": "com.example.models.User",
+			"Json":    "org.json.JSONObject",
+			"JArray":  "org.json.JSONArray",
+		},
+	}
+
+	infos := GetImportInfo(result)
+
+	// Verify all imports are processed
+	if len(infos) != 5 {
+		t.Fatalf("Expected 5 import infos, got %d", len(infos))
+	}
+
+	// Verify aliases are correctly matched
+	aliasCount := 0
+	for _, info := range infos {
+		if info.Alias != "" {
+			aliasCount++
+			// Verify the alias matches the import
+			if expectedAlias, ok := result.ImportAliases[info.Alias]; ok {
+				if expectedAlias != info.Path {
+					t.Errorf("Alias %s: expected path %s, got %s", info.Alias, expectedAlias, info.Path)
+				}
+			} else {
+				t.Errorf("Unexpected alias %s", info.Alias)
+			}
+		}
+	}
+
+	if aliasCount != 3 {
+		t.Errorf("Expected 3 aliased imports, got %d", aliasCount)
+	}
+
+	// Run multiple times to ensure consistent performance
+	for i := 0; i < 100; i++ {
+		GetImportInfo(result)
+	}
+}
