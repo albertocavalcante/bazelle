@@ -17,12 +17,12 @@ go_library(
     importpath = "github.com/albertocavalcante/bazelle/gazelle-kotlin/kotlin",
     visibility = ["//visibility:public"],
     deps = [
-        "@gazelle//config",
-        "@gazelle//label",
-        "@gazelle//language",
-        "@gazelle//repo",
-        "@gazelle//resolve",
-        "@gazelle//rule",
+        "@bazel_gazelle//config",
+        "@bazel_gazelle//label",
+        "@bazel_gazelle//language",
+        "@bazel_gazelle//repo",
+        "@bazel_gazelle//resolve",
+        "@bazel_gazelle//rule",
     ],
 )
 
@@ -36,8 +36,8 @@ go_test(
     ],
     embed = [":kotlin"],
     deps = [
-        "@gazelle//config",
-        "@gazelle//language",
-        "@gazelle//rule",
+        "@bazel_gazelle//config",
+        "@bazel_gazelle//language",
+        "@bazel_gazelle//rule",
     ],
 )

@@ -1,5 +1,6 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
+# keep - manual deps to use bzlmod module names instead of go_deps names
 go_library(
     name = "bazelle_lib",
     srcs = ["main.go"],
@@ -8,9 +9,12 @@ go_library(
     deps = [
         "//cmd/bazelle/internal/cli",
         "//gazelle-kotlin/kotlin",
-        "@gazelle//language",
-        "@gazelle//language/go",
-        "@gazelle//language/proto",
+        "@bazel_gazelle//language",
+        "@bazel_gazelle//language/go",
+        "@bazel_gazelle//language/proto",
+        "@bazel_skylib_gazelle_plugin//bzl",
+        "@gazelle_cc//language/cc",
+        "@rules_python_gazelle_plugin//python",
     ],
 )
 

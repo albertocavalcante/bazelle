@@ -22,8 +22,12 @@ var updateCmd = &cobra.Command{
 	Long: `Updates BUILD files by running gazelle update.
 
 The --check flag can be used in CI to verify BUILD files are up to date
-without making changes.`,
-	RunE: runUpdate,
+without making changes.
+
+Additional gazelle flags (like -bzlmod, -go_prefix) are passed through.`,
+	RunE:                       runUpdate,
+	FParseErrWhitelist:         cobra.FParseErrWhitelist{UnknownFlags: true},
+	DisableFlagsInUseLine:      true,
 }
 
 func init() {
@@ -43,14 +47,16 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Build gazelle arguments
+	// Build gazelle arguments: "update" + defaults + mode + passthrough args
+	// Note: gazelle expects command first, then flags
 	gazelleArgs := []string{"update"}
+	gazelleArgs = append(gazelleArgs, GazelleDefaults...)
 
 	if updateFlags.check {
 		gazelleArgs = append(gazelleArgs, "-mode=diff")
 	}
 
-	// Add path arguments
+	// Add passthrough args (unknown flags + paths)
 	if len(args) > 0 {
 		gazelleArgs = append(gazelleArgs, args...)
 	}

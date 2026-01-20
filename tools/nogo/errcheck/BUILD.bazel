@@ -5,5 +5,5 @@ go_library(
     srcs = ["errcheck.go"],
     importpath = "github.com/albertocavalcante/bazelle/tools/nogo/errcheck",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_kisielk_errcheck//errcheck:go_default_library"],
+    deps = ["@com_github_kisielk_errcheck//errcheck"],
 )

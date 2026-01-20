@@ -24,8 +24,12 @@ var fixCmd = &cobra.Command{
 Unlike 'update', fix may make potentially breaking changes such as
 deleting obsolete rules or renaming existing rules.
 
-Use --dry-run to preview changes without applying them.`,
-	RunE: runFix,
+Use --dry-run to preview changes without applying them.
+
+Additional gazelle flags (like -bzlmod, -go_prefix) are passed through.`,
+	RunE:                       runFix,
+	FParseErrWhitelist:         cobra.FParseErrWhitelist{UnknownFlags: true},
+	DisableFlagsInUseLine:      true,
 }
 
 func init() {
@@ -45,14 +49,16 @@ func runFix(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Build gazelle arguments
+	// Build gazelle arguments: "fix" + defaults + mode + passthrough args
+	// Note: gazelle expects command first, then flags
 	gazelleArgs := []string{"fix"}
+	gazelleArgs = append(gazelleArgs, GazelleDefaults...)
 
 	if fixFlags.check || fixFlags.dryRun {
 		gazelleArgs = append(gazelleArgs, "-mode=diff")
 	}
 
-	// Add path arguments
+	// Add passthrough args (unknown flags + paths)
 	if len(args) > 0 {
 		gazelleArgs = append(gazelleArgs, args...)
 	}

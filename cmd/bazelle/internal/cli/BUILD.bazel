@@ -13,9 +13,9 @@ go_library(
     visibility = ["//cmd/bazelle:__subpackages__"],
     deps = [
         "//cmd/bazelle/internal/detect",
+        "@bazel_gazelle//language",
+        "@bazel_gazelle//runner",
         "@com_github_spf13_cobra//:cobra",
-        "@gazelle//language",
-        "@gazelle//runner",
     ],
 )
 

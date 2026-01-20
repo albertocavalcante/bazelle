@@ -1,6 +1,6 @@
 # Gazelle-Kotlin Extension
 
-load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
+load("@bazel_gazelle//:def.bzl", "gazelle", "gazelle_binary")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -8,7 +8,7 @@ package(default_visibility = ["//visibility:public"])
 gazelle_binary(
     name = "gazelle-kotlin",
     languages = [
-        "@gazelle//language/proto",
+        "@bazel_gazelle//language/proto",
         "//gazelle-kotlin/kotlin:kotlin",
     ],
 )

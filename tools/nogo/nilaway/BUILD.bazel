@@ -5,5 +5,5 @@ go_library(
     srcs = ["nilaway.go"],
     importpath = "github.com/albertocavalcante/bazelle/tools/nogo/nilaway",
     visibility = ["//visibility:public"],
-    deps = ["@org_uber_go_nilaway//:go_default_library"],
+    deps = ["@org_uber_go_nilaway//:nilaway"],
 )

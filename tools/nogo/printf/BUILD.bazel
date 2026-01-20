@@ -5,5 +5,5 @@ go_library(
     srcs = ["printf.go"],
     importpath = "github.com/albertocavalcante/bazelle/tools/nogo/printf",
     visibility = ["//visibility:public"],
-    deps = ["@org_golang_x_tools//go/analysis/passes/printf:go_default_library"],
+    deps = ["@org_golang_x_tools//go/analysis/passes/printf"],
 )
