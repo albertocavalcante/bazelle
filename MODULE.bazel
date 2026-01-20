@@ -29,6 +29,14 @@ bazel_dep(name = "rules_shell", version = "0.6.1")
 bazel_dep(name = "rules_go", version = "0.59.0")
 bazel_dep(name = "gazelle", version = "0.47.0")
 
+# Override gazelle with fork that exposes runner.Run() for library usage
+# See: https://github.com/bazelbuild/bazel-gazelle/pull/1292
+git_override(
+    module_name = "gazelle",
+    remote = "https://github.com/albertocavalcante/fork-bazel-gazelle.git",
+    commit = "c16e1e6df9fcbe7bc2eb87e4d397ddb97300a2ff",
+)
+
 # Go SDK configuration with nogo static analysis
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.download(version = "1.25.6")

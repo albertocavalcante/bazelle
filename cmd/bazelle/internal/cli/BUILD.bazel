@@ -4,6 +4,7 @@ go_library(
     name = "cli",
     srcs = [
         "fix.go",
+        "gazelle.go",
         "init.go",
         "root.go",
         "update.go",
@@ -12,8 +13,9 @@ go_library(
     visibility = ["//cmd/bazelle:__subpackages__"],
     deps = [
         "//cmd/bazelle/internal/detect",
-        "//cmd/bazelle/internal/runner",
         "@com_github_spf13_cobra//:cobra",
+        "@gazelle//language",
+        "@gazelle//runner",
     ],
 )
 

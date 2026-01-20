@@ -1,13 +1,13 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
-
-	"github.com/albertocavalcante/bazelle/cmd/bazelle/internal/runner"
+	"github.com/bazelbuild/bazel-gazelle/runner"
 )
 
 var updateFlags struct {
@@ -38,7 +38,10 @@ func init() {
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
-	r := runner.New()
+	wd, err := runner.GetDefaultWorkspaceDirectory()
+	if err != nil {
+		return err
+	}
 
 	// Build gazelle arguments
 	gazelleArgs := []string{"update"}
@@ -53,15 +56,39 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	if updateFlags.check {
-		return runUpdateCheck(r, gazelleArgs)
+		return runUpdateCheck(wd, gazelleArgs)
 	}
 
-	// Normal update: exec gazelle (replaces process)
-	return r.Exec(gazelleArgs)
+	// Normal update: run gazelle
+	return runner.Run(languages, wd, gazelleArgs...)
 }
 
-func runUpdateCheck(r *runner.Runner, args []string) error {
-	output, err := r.RunWithOutput(args)
+func runUpdateCheck(wd string, args []string) error {
+	// Capture output by redirecting stdout/stderr
+	var buf bytes.Buffer
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+
+	// Create a pipe to capture output
+	r, w, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+
+	os.Stdout = w
+	os.Stderr = w
+
+	// Run gazelle
+	runErr := runner.Run(languages, wd, args...)
+
+	// Restore stdout/stderr
+	_ = w.Close()
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+
+	// Read captured output
+	_, _ = buf.ReadFrom(r)
+	output := buf.Bytes()
 
 	if len(output) > 0 {
 		// There are changes needed
@@ -88,8 +115,8 @@ func runUpdateCheck(r *runner.Runner, args []string) error {
 		os.Exit(1)
 	}
 
-	if err != nil {
-		return fmt.Errorf("gazelle failed: %w", err)
+	if runErr != nil {
+		return fmt.Errorf("gazelle failed: %w", runErr)
 	}
 
 	fmt.Println("BUILD files are up to date")

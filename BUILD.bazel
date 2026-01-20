@@ -50,7 +50,7 @@ package(default_visibility = ["//visibility:public"])
 # Usage: bazel run //:gazelle
 gazelle(
     name = "gazelle",
-    gazelle = "//cmd/gazelle",
+    gazelle = "//cmd/bazelle",
 )
 
 # Update repos target for Go dependency management.
@@ -59,7 +59,7 @@ gazelle(
     name = "gazelle-update-repos",
     args = ["-from_file=go.mod"],
     command = "update-repos",
-    gazelle = "//cmd/gazelle",
+    gazelle = "//cmd/bazelle",
 )
 
 # ==============================================================================

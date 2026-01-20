@@ -10,6 +10,8 @@ require (
 	golang.org/x/tools v0.36.0
 )
 
+replace github.com/bazelbuild/bazel-gazelle => github.com/albertocavalcante/fork-bazel-gazelle v0.0.0-20260120124537-c16e1e6df9fc
+
 require (
 	github.com/bazelbuild/buildtools v0.0.0-20250930140053-2eb4fccefb52 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

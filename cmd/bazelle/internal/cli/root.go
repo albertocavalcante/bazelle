@@ -6,8 +6,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-
-	"github.com/albertocavalcante/bazelle/cmd/bazelle/internal/runner"
+	"github.com/bazelbuild/bazel-gazelle/language"
 )
 
 // Version information (set via ldflags)
@@ -15,6 +14,14 @@ var (
 	Version   = "dev"
 	GitCommit = "unknown"
 )
+
+// languages holds the list of language extensions to use with gazelle
+var languages []language.Language
+
+// SetLanguages sets the language extensions to use with gazelle
+func SetLanguages(langs []language.Language) {
+	languages = langs
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -30,18 +37,6 @@ Use 'bazelle gazelle' for direct access to the underlying gazelle binary.`,
 	},
 }
 
-// gazelleCmd provides direct passthrough to the gazelle binary
-var gazelleCmd = &cobra.Command{
-	Use:                "gazelle [args...]",
-	Short:              "Run gazelle directly",
-	Long:               `Passes all arguments directly to the underlying gazelle binary.`,
-	DisableFlagParsing: true, // Pass all flags to gazelle
-	RunE: func(cmd *cobra.Command, args []string) error {
-		r := runner.New()
-		return r.Exec(args)
-	},
-}
-
 // versionCmd shows version information
 var versionCmd = &cobra.Command{
 	Use:   "version",
@@ -52,7 +47,6 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(gazelleCmd)
 	rootCmd.AddCommand(versionCmd)
 }
 

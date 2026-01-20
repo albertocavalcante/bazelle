@@ -5,5 +5,5 @@ go_library(
     srcs = ["structtag.go"],
     importpath = "github.com/albertocavalcante/bazelle/tools/nogo/structtag",
     visibility = ["//visibility:public"],
-    deps = ["@org_golang_x_tools//go/analysis/passes/structtag"],
+    deps = ["@org_golang_x_tools//go/analysis/passes/structtag:go_default_library"],
 )

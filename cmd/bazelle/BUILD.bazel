@@ -5,12 +5,17 @@ go_library(
     srcs = ["main.go"],
     importpath = "github.com/albertocavalcante/bazelle/cmd/bazelle",
     visibility = ["//visibility:private"],
-    deps = ["//cmd/bazelle/internal/cli"],
+    deps = [
+        "//cmd/bazelle/internal/cli",
+        "//gazelle-kotlin/kotlin",
+        "@gazelle//language",
+        "@gazelle//language/go",
+        "@gazelle//language/proto",
+    ],
 )
 
 go_binary(
     name = "bazelle",
-    data = ["//cmd/gazelle"],  # Gazelle binary for passthrough
     embed = [":bazelle_lib"],
     visibility = ["//visibility:public"],
 )

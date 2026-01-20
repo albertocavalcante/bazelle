@@ -9,7 +9,6 @@ set -e
 
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 BAZELLE_PATH="${BUILD_WORKSPACE_DIRECTORY}/bazel-bin/cmd/bazelle/bazelle_/bazelle"
-GAZELLE_PATH="${BUILD_WORKSPACE_DIRECTORY}/bazel-bin/cmd/gazelle/gazelle_/gazelle"
 
 # Colors
 if [ -t 1 ]; then
@@ -26,21 +25,20 @@ success() { printf "${GREEN}==>${NC} %s\n" "$1"; }
 warn() { printf "${YELLOW}warning:${NC} %s\n" "$1"; }
 
 # Build if needed
-if [ ! -f "$BAZELLE_PATH" ] || [ ! -f "$GAZELLE_PATH" ]; then
+if [ ! -f "$BAZELLE_PATH" ]; then
     info "Building bazelle..."
-    (cd "$BUILD_WORKSPACE_DIRECTORY" && bazel build //cmd/bazelle //cmd/gazelle)
+    (cd "$BUILD_WORKSPACE_DIRECTORY" && bazel build //cmd/bazelle)
 fi
 
 # Install
 info "Installing to ${INSTALL_DIR}..."
 mkdir -p "$INSTALL_DIR"
 
-rm -f "$INSTALL_DIR/bazelle" "$INSTALL_DIR/bazelle-gazelle"
+rm -f "$INSTALL_DIR/bazelle"
 cp "$BAZELLE_PATH" "$INSTALL_DIR/bazelle"
-cp "$GAZELLE_PATH" "$INSTALL_DIR/bazelle-gazelle"
-chmod +x "$INSTALL_DIR/bazelle" "$INSTALL_DIR/bazelle-gazelle"
+chmod +x "$INSTALL_DIR/bazelle"
 
-success "Installed bazelle and bazelle-gazelle to ${INSTALL_DIR}/"
+success "Installed bazelle to ${INSTALL_DIR}/"
 
 # Check PATH
 case ":$PATH:" in

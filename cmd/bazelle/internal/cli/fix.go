@@ -1,13 +1,13 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
-
-	"github.com/albertocavalcante/bazelle/cmd/bazelle/internal/runner"
+	"github.com/bazelbuild/bazel-gazelle/runner"
 )
 
 var fixFlags struct {
@@ -40,7 +40,10 @@ func init() {
 }
 
 func runFix(cmd *cobra.Command, args []string) error {
-	r := runner.New()
+	wd, err := runner.GetDefaultWorkspaceDirectory()
+	if err != nil {
+		return err
+	}
 
 	// Build gazelle arguments
 	gazelleArgs := []string{"fix"}
@@ -55,19 +58,43 @@ func runFix(cmd *cobra.Command, args []string) error {
 	}
 
 	if fixFlags.check {
-		return runFixCheck(r, gazelleArgs)
+		return runFixCheck(wd, gazelleArgs)
 	}
 
 	if fixFlags.dryRun {
-		return runFixDryRun(r, gazelleArgs)
+		return runFixDryRun(wd, gazelleArgs)
 	}
 
-	// Normal fix: exec gazelle (replaces process)
-	return r.Exec(gazelleArgs)
+	// Normal fix: run gazelle
+	return runner.Run(languages, wd, gazelleArgs...)
 }
 
-func runFixCheck(r *runner.Runner, args []string) error {
-	output, err := r.RunWithOutput(args)
+func runFixCheck(wd string, args []string) error {
+	// Capture output by redirecting stdout/stderr
+	var buf bytes.Buffer
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+
+	// Create a pipe to capture output
+	r, w, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+
+	os.Stdout = w
+	os.Stderr = w
+
+	// Run gazelle
+	runErr := runner.Run(languages, wd, args...)
+
+	// Restore stdout/stderr
+	_ = w.Close()
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+
+	// Read captured output
+	_, _ = buf.ReadFrom(r)
+	output := buf.Bytes()
 
 	if len(output) > 0 {
 		if fixFlags.verbose {
@@ -80,18 +107,43 @@ func runFixCheck(r *runner.Runner, args []string) error {
 		os.Exit(1)
 	}
 
-	if err != nil {
-		return fmt.Errorf("gazelle failed: %w", err)
+	if runErr != nil {
+		return fmt.Errorf("gazelle failed: %w", runErr)
 	}
 
 	fmt.Println("BUILD files are up to date")
 	return nil
 }
 
-func runFixDryRun(r *runner.Runner, args []string) error {
-	output, err := r.RunWithOutput(args)
+func runFixDryRun(wd string, args []string) error {
+	// Capture output by redirecting stdout/stderr
+	var buf bytes.Buffer
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+
+	// Create a pipe to capture output
+	r, w, err := os.Pipe()
 	if err != nil {
-		return fmt.Errorf("gazelle failed: %w", err)
+		return err
+	}
+
+	os.Stdout = w
+	os.Stderr = w
+
+	// Run gazelle
+	runErr := runner.Run(languages, wd, args...)
+
+	// Restore stdout/stderr
+	_ = w.Close()
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+
+	// Read captured output
+	_, _ = buf.ReadFrom(r)
+	output := buf.Bytes()
+
+	if runErr != nil {
+		return fmt.Errorf("gazelle failed: %w", runErr)
 	}
 
 	if len(output) > 0 {

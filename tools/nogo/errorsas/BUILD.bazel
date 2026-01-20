@@ -5,5 +5,5 @@ go_library(
     srcs = ["errorsas.go"],
     importpath = "github.com/albertocavalcante/bazelle/tools/nogo/errorsas",
     visibility = ["//visibility:public"],
-    deps = ["@org_golang_x_tools//go/analysis/passes/errorsas"],
+    deps = ["@org_golang_x_tools//go/analysis/passes/errorsas:go_default_library"],
 )
