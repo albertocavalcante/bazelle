@@ -36,6 +36,14 @@ register_toolchains("@go_toolchains//:all")
 # ==============================================================================
 bazel_dep(name = "rules_kotlin", version = "2.2.2")
 
+# Override rules_android to 0.7.1 for Bazel 9 compatibility
+# rules_kotlin@2.2.2 depends on rules_android@0.6.4 which fails on Bazel 9
+# See: https://github.com/bazelbuild/rules_android/releases/tag/v0.7.0
+single_version_override(
+    module_name = "rules_android",
+    version = "0.7.1",
+)
+
 # ==============================================================================
 # Java Support (contrib_rules_jvm includes java gazelle extension)
 # DISABLED: Bazel 9 compatibility requires patching - see third_party/patches/README.md
