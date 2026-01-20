@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -675,5 +676,359 @@ func TestGetImportInfo_EfficientAliasLookup(t *testing.T) {
 	// Run multiple times to ensure consistent performance
 	for i := 0; i < 100; i++ {
 		GetImportInfo(result)
+	}
+}
+
+// ===============================================
+// Edge Case Tests (derived from QA adversarial testing)
+// ===============================================
+
+func TestParser_EmptyFile(t *testing.T) {
+	parser := NewParser()
+	result, err := parser.ParseContent("", "empty.kt")
+	if err != nil {
+		t.Fatalf("Failed to parse empty file: %v", err)
+	}
+	if result.Package != "" {
+		t.Errorf("Empty file should have no package, got: %s", result.Package)
+	}
+	if len(result.Imports) != 0 {
+		t.Errorf("Empty file should have no imports, got: %v", result.Imports)
+	}
+}
+
+func TestParser_OnlyComments(t *testing.T) {
+	parser := NewParser()
+	content := `// Just comments
+/* Multi-line
+   comment only */
+// More comments
+`
+	result, err := parser.ParseContent(content, "comments.kt")
+	if err != nil {
+		t.Fatalf("Failed to parse comment-only file: %v", err)
+	}
+	if result.Package != "" {
+		t.Errorf("Comment-only file should have no package, got: %s", result.Package)
+	}
+}
+
+func TestParser_VeryLongLine(t *testing.T) {
+	parser := NewParser()
+	// Create a line with 100KB of content (tests buffer size fix)
+	longImport := "import com.example." + strings.Repeat("a", 100000) + ".VeryLongPackage"
+	content := "package com.example.test\n" + longImport + "\n\nclass Test"
+
+	result, err := parser.ParseContent(content, "long.kt")
+	if err != nil {
+		t.Fatalf("Failed to parse file with very long line: %v", err)
+	}
+	if result.Package != "com.example.test" {
+		t.Errorf("Package not parsed correctly with long line")
+	}
+}
+
+func TestParser_MultilineCommentAcrossPackage(t *testing.T) {
+	parser := NewParser()
+	content := `/* comment
+package fake.Package
+*/
+package com.example.real
+
+import com.example.Foo
+`
+	result, err := parser.ParseContent(content, "test.kt")
+	if err != nil {
+		t.Fatalf("Failed to parse: %v", err)
+	}
+	if result.Package != "com.example.real" {
+		t.Errorf("Expected package 'com.example.real', got '%s'", result.Package)
+	}
+}
+
+func TestParser_CommentWithSlashStarInside(t *testing.T) {
+	// Tests fix for BUG-005: // comment containing /* should not trigger multiline mode
+	parser := NewParser()
+	content := `package com.example.test
+// This is a comment with /* inside it
+import com.example.Foo
+class Test
+`
+	result, err := parser.ParseContent(content, "test.kt")
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+
+	if len(result.Imports) != 1 || result.Imports[0] != "com.example.Foo" {
+		t.Errorf("Should parse import after // comment with /*, got: %v", result.Imports)
+	}
+}
+
+func TestParser_NoPackageDeclaration(t *testing.T) {
+	parser := NewParser()
+	content := `import com.example.Foo
+class Test
+`
+	result, err := parser.ParseContent(content, "test.kt")
+	if err != nil {
+		t.Fatalf("Failed to parse: %v", err)
+	}
+	if result.Package != "" {
+		t.Errorf("Expected empty package, got: %s", result.Package)
+	}
+	if len(result.Imports) != 1 {
+		t.Errorf("Expected 1 import, got %d", len(result.Imports))
+	}
+}
+
+func TestParser_MultiplePackageDeclarations(t *testing.T) {
+	parser := NewParser()
+	content := `package com.example.first
+package com.example.second
+class Test
+`
+	result, err := parser.ParseContent(content, "test.kt")
+	if err != nil {
+		t.Fatalf("Failed to parse: %v", err)
+	}
+	// Should only take the first one
+	if result.Package != "com.example.first" {
+		t.Errorf("Expected first package declaration, got: %s", result.Package)
+	}
+}
+
+func TestParser_PackageAllDots(t *testing.T) {
+	// Tests fix for BUG-010: Package names must start with a letter
+	parser := NewParser()
+	content := "package " + strings.Repeat(".", 100) + "\nclass Test"
+	result, err := parser.ParseContent(content, "test.kt")
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	if result.Package != "" {
+		t.Errorf("Expected empty package (all-dots is invalid), got '%s'", result.Package)
+	}
+}
+
+func TestParser_SingleCharPackage(t *testing.T) {
+	parser := NewParser()
+	content := "package a\nclass Test"
+
+	result, err := parser.ParseContent(content, "test.kt")
+	if err != nil {
+		t.Fatalf("Failed to parse: %v", err)
+	}
+	if result.Package != "a" {
+		t.Errorf("Single character package not parsed correctly: %s", result.Package)
+	}
+}
+
+func TestFQNScanner_NegativeCodeStartLine(t *testing.T) {
+	// Tests fix for BUG-001/002: Scanner should handle negative indices gracefully
+	scanner := NewFQNScanner()
+
+	tests := []struct {
+		name          string
+		content       string
+		codeStartLine int
+	}{
+		{"NegativeOne", "class Test", -1},
+		{"VeryNegative", "package test\nclass Test", -999999},
+		{"EmptyContentNegative", "", -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Should not panic
+			result := scanner.Scan(tt.content, tt.codeStartLine)
+			if result == nil {
+				t.Error("Expected non-nil result")
+			}
+		})
+	}
+}
+
+func TestFQNScanner_CodeStartLineBeyondContent(t *testing.T) {
+	scanner := NewFQNScanner()
+	content := "package com.example.test\nimport com.example.Foo"
+
+	result := scanner.Scan(content, 999)
+
+	if len(result.FQNs) != 0 {
+		t.Errorf("Should return empty when code start line is beyond content")
+	}
+}
+
+func TestFQNScanner_FQNInStringTemplate(t *testing.T) {
+	scanner := NewFQNScanner()
+	content := `package com.example.test
+
+class Test {
+    val msg = "Using ${com.example.fake.InTemplate}"
+    val raw = """com.example.fake.InRawString"""
+    val real = com.example.real.RealClass()
+}
+`
+	result := scanner.Scan(content, 3)
+
+	// FQNs in strings should NOT be detected
+	for _, fqn := range result.FQNs {
+		if strings.Contains(fqn, "fake") {
+			t.Errorf("FQN in string should not be detected: %s", fqn)
+		}
+	}
+
+	// Real one should be detected
+	fqnSet := make(map[string]bool)
+	for _, fqn := range result.FQNs {
+		fqnSet[fqn] = true
+	}
+	if !fqnSet["com.example.real.RealClass"] {
+		t.Errorf("Expected to detect com.example.real.RealClass, got: %v", result.FQNs)
+	}
+}
+
+func TestFQNScanner_NestedGenerics(t *testing.T) {
+	scanner := NewFQNScanner()
+	content := `package com.example.test
+
+class Test {
+    val map: Map<String, com.example.models.User<com.example.data.Profile>> = emptyMap()
+}
+`
+	result := scanner.Scan(content, 3)
+
+	fqnSet := make(map[string]bool)
+	for _, fqn := range result.FQNs {
+		fqnSet[fqn] = true
+	}
+
+	// Should detect User (without generic params)
+	if !fqnSet["com.example.models.User"] {
+		t.Errorf("Should detect User, got: %v", result.FQNs)
+	}
+
+	// Should detect Profile
+	if !fqnSet["com.example.data.Profile"] {
+		t.Errorf("Should detect Profile in nested generic, got: %v", result.FQNs)
+	}
+
+	// Should NOT have < or > in FQN
+	for fqn := range fqnSet {
+		if strings.Contains(fqn, "<") || strings.Contains(fqn, ">") {
+			t.Errorf("FQN should not contain generic markers: %s", fqn)
+		}
+	}
+}
+
+func TestFQNScanner_TripleQuotedStringMultiline(t *testing.T) {
+	scanner := NewFQNScanner()
+	content := `package com.example.test
+
+class Test {
+    val text = """
+        This is a multiline string
+        with com.example.fake.FakeClass inside
+        and more text
+    """
+    fun real() = com.example.real.RealClass()
+}
+`
+	result := scanner.Scan(content, 3)
+
+	// FakeClass should NOT be detected
+	for _, fqn := range result.FQNs {
+		if strings.Contains(fqn, "FakeClass") {
+			t.Errorf("FQN in triple-quoted string should not be detected: %s", fqn)
+		}
+	}
+
+	// RealClass should be detected
+	fqnSet := make(map[string]bool)
+	for _, fqn := range result.FQNs {
+		fqnSet[fqn] = true
+	}
+	if !fqnSet["com.example.real.RealClass"] {
+		t.Errorf("Should detect RealClass outside of triple-quoted string, got: %v", result.FQNs)
+	}
+}
+
+func TestFQNScanner_FQNWithOnlyTwoSegments(t *testing.T) {
+	scanner := NewFQNScanner()
+	content := `package com.example
+
+class Test {
+    fun test() = io.Client()
+}
+`
+	result := scanner.Scan(content, 2)
+
+	// Should NOT detect io.Client (only 2 segments)
+	for _, fqn := range result.FQNs {
+		if fqn == "io.Client" {
+			t.Errorf("Should not detect FQN with only 2 segments: %s", fqn)
+		}
+	}
+}
+
+func TestFQNScanner_LowercaseClassName(t *testing.T) {
+	scanner := NewFQNScanner()
+	content := `package com.example
+
+class Test {
+    fun test() = com.example.utils.lowercase()
+}
+`
+	result := scanner.Scan(content, 2)
+
+	// Should NOT detect com.example.utils.lowercase (class names must start uppercase)
+	for _, fqn := range result.FQNs {
+		if fqn == "com.example.utils.lowercase" {
+			t.Errorf("Should not detect FQN with lowercase class name: %s", fqn)
+		}
+	}
+}
+
+func TestExtractClassFromFQN_EdgeCases(t *testing.T) {
+	// Tests fix for BUG-016
+	tests := []struct {
+		fqn      string
+		expected string
+	}{
+		{"com.example.foo.Bar", "Bar"},
+		{"Foo", "Foo"}, // No dot - return as-is
+		{"com.", ""},   // Trailing dot - invalid
+		{".", ""},      // Just dot - invalid
+		{"", ""},       // Empty
+		{"com.example.Foo", "Foo"},
+	}
+
+	for _, tt := range tests {
+		result := ExtractClassFromFQN(tt.fqn)
+		if result != tt.expected {
+			t.Errorf("ExtractClassFromFQN(%q): expected %q, got %q", tt.fqn, tt.expected, result)
+		}
+	}
+}
+
+func TestCleanFQN_EdgeCases(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"com.example.Foo<Bar>", "com.example.Foo"},
+		{"com.example.Foo?", "com.example.Foo"},
+		{"com.example.Foo[]", "com.example.Foo"},
+		{"com.example.Foo<Bar<Baz>>", "com.example.Foo"},
+		{"  com.example.Foo  ", "com.example.Foo"},
+		{"com.example.Foo.", "com.example.Foo"},
+		{"com.example.Foo!", "com.example.Foo"},
+	}
+
+	for _, tt := range tests {
+		result := cleanFQN(tt.input)
+		if result != tt.expected {
+			t.Errorf("cleanFQN(%q): expected %q, got %q", tt.input, tt.expected, result)
+		}
 	}
 }

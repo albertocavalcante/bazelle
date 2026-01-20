@@ -2,6 +2,7 @@ package kotlin
 
 import (
 	"flag"
+	"log"
 	"path/filepath"
 	"strings"
 
@@ -96,6 +97,10 @@ func (*kotlinLang) Configure(c *config.Config, rel string, f *rule.File) {
 		case "kotlin_visibility":
 			newKc.Visibility = d.Value
 		case "kotlin_load":
+			// Warn about potential path traversal
+			if strings.Contains(d.Value, "..") {
+				log.Printf("WARNING: kotlin_load path contains '..' which may be unsafe: %s", d.Value)
+			}
 			newKc.LoadPath = d.Value
 		}
 	}

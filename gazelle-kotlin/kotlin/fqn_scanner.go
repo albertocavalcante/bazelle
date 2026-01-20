@@ -113,7 +113,7 @@ func (s *FQNScanner) Scan(content string, codeStartLine int) *ScanResult {
 	}
 
 	lines := strings.Split(content, "\n")
-	if codeStartLine >= len(lines) {
+	if codeStartLine < 0 || codeStartLine >= len(lines) {
 		return result
 	}
 
@@ -338,9 +338,15 @@ func ExtractPackageFromFQN(fqn string) string {
 
 // ExtractClassFromFQN extracts the class name from a fully qualified name.
 // For example, "com.example.foo.Bar" returns "Bar".
+// Returns empty string for malformed FQNs like "com." or ".".
 func ExtractClassFromFQN(fqn string) string {
-	if idx := strings.LastIndex(fqn, "."); idx >= 0 && idx < len(fqn)-1 {
+	if idx := strings.LastIndex(fqn, "."); idx > 0 && idx < len(fqn)-1 {
 		return fqn[idx+1:]
 	}
+	// Return empty for malformed FQNs (trailing dot, only dot, etc.)
+	if strings.Contains(fqn, ".") {
+		return ""
+	}
+	// No dot - return the FQN itself (simple class name)
 	return fqn
 }

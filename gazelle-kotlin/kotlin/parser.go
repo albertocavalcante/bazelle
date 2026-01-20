@@ -11,12 +11,12 @@ import (
 // KotlinParser parses Kotlin source files to extract metadata.
 type KotlinParser struct {
 	// Regex patterns for parsing
-	packageRegex      *regexp.Regexp
-	importRegex       *regexp.Regexp
-	importAliasRegex  *regexp.Regexp
-	starImportRegex   *regexp.Regexp
-	annotationRegex   *regexp.Regexp
-	declarationRegex  *regexp.Regexp
+	packageRegex     *regexp.Regexp
+	importRegex      *regexp.Regexp
+	importAliasRegex *regexp.Regexp
+	starImportRegex  *regexp.Regexp
+	annotationRegex  *regexp.Regexp
+	declarationRegex *regexp.Regexp
 
 	// FQN scanner for detecting inline fully qualified names
 	fqnScanner *FQNScanner
@@ -72,18 +72,21 @@ func NewParser(opts ...ParserOption) *KotlinParser {
 	p := &KotlinParser{
 		// Match: package com.example.myapp
 		// Also handles: package `com.example.reserved`
-		packageRegex: regexp.MustCompile(`^\s*package\s+([\w.]+|` + "`[^`]+`" + `)`),
+		// Requires ASCII letters/numbers only, must start with letter
+		packageRegex: regexp.MustCompile(`^\s*package\s+([a-zA-Z][a-zA-Z0-9_.]*|` + "`[^`]+`" + `)`),
 
 		// Match: import com.example.SomeClass
 		// Captures the import path (without alias)
-		importRegex: regexp.MustCompile(`^\s*import\s+([\w.]+)`),
+		// Requires valid structure: starts with letter, no consecutive dots, no trailing dot
+		importRegex: regexp.MustCompile(`^\s*import\s+([a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z][a-zA-Z0-9_]*)*)`),
 
 		// Match: import com.example.SomeClass as Alias
 		// Captures: [full match, import path, alias]
-		importAliasRegex: regexp.MustCompile(`^\s*import\s+([\w.]+)\s+as\s+(\w+)`),
+		importAliasRegex: regexp.MustCompile(`^\s*import\s+([a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z][a-zA-Z0-9_]*)*)\s+as\s+(\w+)`),
 
 		// Match: import com.example.*
-		starImportRegex: regexp.MustCompile(`^\s*import\s+([\w.]+)\.\*`),
+		// End anchor ensures .* is at end of line (no trailing content like .*.Foo)
+		starImportRegex: regexp.MustCompile(`^\s*import\s+([a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z][a-zA-Z0-9_]*)*)\.\*\s*$`),
 
 		// Match file-level annotations: @file:JvmName("Foo")
 		annotationRegex: regexp.MustCompile(`^\s*@file\s*:\s*(\w+)`),
@@ -124,6 +127,9 @@ func (p *KotlinParser) ParseContent(content string, path string) (*ParseResult, 
 	}
 
 	scanner := bufio.NewScanner(strings.NewReader(content))
+	// Increase buffer size to handle very long lines (minified code, generated files)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024) // 1MB max token size
 	inMultilineComment := false
 	lineNum := 0
 	importSectionEnded := false
@@ -132,7 +138,18 @@ func (p *KotlinParser) ParseContent(content string, path string) (*ParseResult, 
 		lineNum++
 		line := scanner.Text()
 
+		// Remove single-line comments FIRST to avoid false positives
+		// (e.g., "// comment with /* inside" should not trigger multi-line mode)
+		// But only if we're not already in a multi-line comment
+		if !inMultilineComment {
+			if idx := strings.Index(line, "//"); idx >= 0 {
+				line = line[:idx]
+			}
+		}
+
 		// Track multi-line comments
+		// Note: Kotlin does not support nested /* */ comments.
+		// This parser matches that behavior by ending at the first */
 		commentStart := strings.Index(line, "/*")
 		commentEnd := strings.Index(line, "*/")
 
@@ -150,11 +167,6 @@ func (p *KotlinParser) ParseContent(content string, path string) (*ParseResult, 
 		}
 		if inMultilineComment {
 			continue
-		}
-
-		// Remove inline comments
-		if idx := strings.Index(line, "//"); idx >= 0 {
-			line = line[:idx]
 		}
 
 		trimmed := strings.TrimSpace(line)
@@ -226,7 +238,11 @@ func (p *KotlinParser) ParseContent(content string, path string) (*ParseResult, 
 
 	// Scan for FQNs in the code body if enabled
 	if p.enableFQNScanning {
-		scanResult := p.fqnScanner.Scan(content, result.CodeStartLine-1)
+		startLine := result.CodeStartLine - 1
+		if startLine < 0 {
+			startLine = 0
+		}
+		scanResult := p.fqnScanner.Scan(content, startLine)
 		result.FQNs = scanResult.FQNs
 	}
 

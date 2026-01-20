@@ -1,6 +1,7 @@
 package kotlin
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -72,7 +73,10 @@ func (k *kotlinLang) generateLibraryRule(args language.GenerateArgs, kc *KotlinC
 	}
 
 	results, err := k.parser.ParseFiles(fullPaths)
-	if err == nil && len(results) > 0 {
+	if err != nil {
+		log.Printf("WARNING: Failed to parse Kotlin files for %s: %v", name, err)
+	}
+	if len(results) > 0 {
 		r.SetPrivateAttr("packages", GetPackages(results))
 	}
 
@@ -98,7 +102,10 @@ func (k *kotlinLang) generateTestRule(args language.GenerateArgs, kc *KotlinConf
 	}
 
 	results, err := k.parser.ParseFiles(fullPaths)
-	if err == nil && len(results) > 0 {
+	if err != nil {
+		log.Printf("WARNING: Failed to parse Kotlin test files for %s: %v", name, err)
+	}
+	if len(results) > 0 {
 		packages := GetPackages(results)
 		sort.Strings(packages)
 		if len(packages) > 0 {
