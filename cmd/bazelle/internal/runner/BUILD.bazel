@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "runner",
+    srcs = ["runner.go"],
+    importpath = "github.com/albertocavalcante/bazelle/cmd/bazelle/internal/runner",
+    visibility = ["//cmd/bazelle:__subpackages__"],
+)
+
+go_test(
+    name = "runner_test",
+    srcs = ["runner_test.go"],
+    deps = [":runner"],
+)

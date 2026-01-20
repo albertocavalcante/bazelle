@@ -17,12 +17,12 @@ go_library(
     importpath = "github.com/albertocavalcante/bazelle/gazelle-kotlin/kotlin",
     visibility = ["//visibility:public"],
     deps = [
-        "@gazelle//config:go_default_library",
-        "@gazelle//label:go_default_library",
-        "@gazelle//language:go_default_library",
-        "@gazelle//repo:go_default_library",
-        "@gazelle//resolve:go_default_library",
-        "@gazelle//rule:go_default_library",
+        "@gazelle//config",
+        "@gazelle//label",
+        "@gazelle//language",
+        "@gazelle//repo",
+        "@gazelle//resolve",
+        "@gazelle//rule",
     ],
 )
 
@@ -35,4 +35,9 @@ go_test(
         "parser_test.go",
     ],
     embed = [":kotlin"],
+    deps = [
+        "@gazelle//config",
+        "@gazelle//language",
+        "@gazelle//rule",
+    ],
 )

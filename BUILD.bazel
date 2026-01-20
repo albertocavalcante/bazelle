@@ -50,7 +50,7 @@ package(default_visibility = ["//visibility:public"])
 # Usage: bazel run //:gazelle
 gazelle(
     name = "gazelle",
-    gazelle = "//cmd/bazelle",
+    gazelle = "//cmd/gazelle",
 )
 
 # Update repos target for Go dependency management.
@@ -59,7 +59,7 @@ gazelle(
     name = "gazelle-update-repos",
     args = ["-from_file=go.mod"],
     command = "update-repos",
-    gazelle = "//cmd/bazelle",
+    gazelle = "//cmd/gazelle",
 )
 
 # ==============================================================================
@@ -71,5 +71,5 @@ gazelle(
 sh_binary(
     name = "install",
     srcs = ["//tools/scripts:install-local.sh"],
-    data = ["//cmd/bazelle"],
+    data = ["//cmd/bazelle"],  # Will point to new CLI once built
 )

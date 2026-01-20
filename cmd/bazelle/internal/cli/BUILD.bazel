@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cli",
+    srcs = [
+        "fix.go",
+        "init.go",
+        "root.go",
+        "update.go",
+    ],
+    importpath = "github.com/albertocavalcante/bazelle/cmd/bazelle/internal/cli",
+    visibility = ["//cmd/bazelle:__subpackages__"],
+    deps = [
+        "//cmd/bazelle/internal/detect",
+        "//cmd/bazelle/internal/runner",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)
+
+go_test(
+    name = "cli_test",
+    srcs = ["init_test.go"],
+    embed = [":cli"],
+)

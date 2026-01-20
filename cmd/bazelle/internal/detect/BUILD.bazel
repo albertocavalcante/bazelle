@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "detect",
+    srcs = ["detect.go"],
+    importpath = "github.com/albertocavalcante/bazelle/cmd/bazelle/internal/detect",
+    visibility = ["//cmd/bazelle:__subpackages__"],
+)
+
+go_test(
+    name = "detect_test",
+    srcs = ["detect_test.go"],
+    deps = [":detect"],
+)

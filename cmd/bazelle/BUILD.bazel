@@ -1,52 +1,16 @@
-# Bazelle - Polyglot Gazelle CLI
-#
-# This is the main bazelle binary that composes multiple gazelle language
-# extensions into a single CLI.
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
-load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
+go_library(
+    name = "bazelle_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/albertocavalcante/bazelle/cmd/bazelle",
+    visibility = ["//visibility:private"],
+    deps = ["//cmd/bazelle/internal/cli"],
+)
 
-package(default_visibility = ["//visibility:public"])
-
-# Polyglot Gazelle binary with all language extensions.
-# Extension order matters: proto metadata flows to downstream extensions.
-gazelle_binary(
+go_binary(
     name = "bazelle",
-    languages = [
-        # Built-in extensions (from @gazelle)
-        "@gazelle//language/proto",
-        "@gazelle//language/go",
-
-        # Third-party extensions (via bazel_dep)
-        # Java: DISABLED - contrib_rules_jvm uses grpc-java 1.71.0 (built-in ProtoInfo)
-        # Bazel 9 removed built-in ProtoInfo, requires grpc-java >= 1.76
-        # See: https://github.com/grpc/grpc-java/issues/12315
-        # See: third_party/patches/README.md for patching approach
-        # TODO: Re-enable when upstream updates grpc-java
-        # "@contrib_rules_jvm//java/gazelle",
-
-        # Own extensions (from this repo)
-        # Kotlin: generates kt_jvm_library, kt_jvm_test
-        "//gazelle-kotlin/kotlin",
-
-        # Python: generates py_library, py_test, py_binary
-        # Requires CGO (tree-sitter) - host toolchain used for now
-        "@rules_python_gazelle_plugin//python",
-
-        # C/C++: generates cc_library, cc_binary, cc_test
-        "@gazelle_cc//language/cc",
-    ],
-)
-
-# Default gazelle target using the bazelle binary.
-gazelle(
-    name = "gazelle",
-    gazelle = ":bazelle",
-)
-
-# Update repos target for dependency management.
-gazelle(
-    name = "gazelle-update-repos",
-    args = ["-from_file=go.mod"],
-    command = "update-repos",
-    gazelle = ":bazelle",
+    data = ["//cmd/gazelle"],  # Gazelle binary for passthrough
+    embed = [":bazelle_lib"],
+    visibility = ["//visibility:public"],
 )
