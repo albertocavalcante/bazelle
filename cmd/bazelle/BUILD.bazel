@@ -1,6 +1,7 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
-# keep - manual deps to use bzlmod module names instead of go_deps names
+# Manual deps to use bzlmod module names instead of go_deps names.
+# The Go imports don't match bzlmod module paths, so deps must be managed manually.
 go_library(
     name = "bazelle_lib",
     srcs = ["main.go"],

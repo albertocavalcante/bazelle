@@ -19,6 +19,21 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:go_naming_convention import
 # gazelle:go_naming_convention_external import
 
+# Resolve imports to bzlmod module names (Go imports don't match bzlmod paths).
+# This maps Go module paths to their corresponding bazel_dep labels.
+# gazelle:resolve go github.com/bazelbuild/bazel-gazelle/config @bazel_gazelle//config
+# gazelle:resolve go github.com/bazelbuild/bazel-gazelle/label @bazel_gazelle//label
+# gazelle:resolve go github.com/bazelbuild/bazel-gazelle/language @bazel_gazelle//language
+# gazelle:resolve go github.com/bazelbuild/bazel-gazelle/language/go @bazel_gazelle//language/go
+# gazelle:resolve go github.com/bazelbuild/bazel-gazelle/language/proto @bazel_gazelle//language/proto
+# gazelle:resolve go github.com/bazelbuild/bazel-gazelle/repo @bazel_gazelle//repo
+# gazelle:resolve go github.com/bazelbuild/bazel-gazelle/resolve @bazel_gazelle//resolve
+# gazelle:resolve go github.com/bazelbuild/bazel-gazelle/rule @bazel_gazelle//rule
+# gazelle:resolve go github.com/bazelbuild/bazel-gazelle/runner @bazel_gazelle//runner
+# gazelle:resolve go github.com/EngFlow/gazelle_cc/language/cc @gazelle_cc//language/cc
+# gazelle:resolve go github.com/bazel-contrib/rules_python/gazelle/python @rules_python_gazelle_plugin//python
+# gazelle:resolve go github.com/bazelbuild/bazel-skylib/gazelle @bazel_skylib_gazelle_plugin//bzl
+
 # Exclude directories
 # gazelle:exclude .git
 # gazelle:exclude bazel-*
