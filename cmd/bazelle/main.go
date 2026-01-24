@@ -17,6 +17,7 @@ import (
 	pythonLang "github.com/bazel-contrib/rules_python/gazelle/python"
 	bzlLang "github.com/bazelbuild/bazel-skylib/gazelle"
 	rustLang "github.com/calsign/gazelle_rust/rust_language"
+	scalaLang "github.com/stackb/scala-gazelle/language/scala"
 )
 
 // Languages is the list of language extensions for gazelle
@@ -26,6 +27,7 @@ var Languages = []language.Language{
 	goLang.NewLanguage(),
 	bzlLang.NewLanguage(),
 	javaLang.NewLanguage(),
+	scalaLang.NewLanguage(),
 	pythonLang.NewLanguage(),
 	ccLang.NewLanguage(),
 	kotlinLang.NewLanguage(),

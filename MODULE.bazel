@@ -2,7 +2,7 @@
 Bazelle - Polyglot Gazelle CLI.
 
 This monorepo provides a unified gazelle binary (bazelle) that supports
-multiple programming languages: proto, go, java, kotlin, groovy, python, cc, rust.
+multiple programming languages: proto, go, java, kotlin, groovy, scala, python, cc, rust.
 
 Extensions are synced via Copybara to standalone repos for BCR publishing.
 """
@@ -106,3 +106,11 @@ archive_override(
     strip_prefix = "gazelle_rust-{}".format(GAZELLE_RUST_COMMIT),
     urls = ["https://github.com/Calsign/gazelle_rust/archive/{}.zip".format(GAZELLE_RUST_COMMIT)],
 )
+
+# ==============================================================================
+# Scala Support (scala-gazelle from stackb)
+# Requires rules_nodejs 6.7.3+ for Bazel 9 compatibility
+# ==============================================================================
+bazel_dep(name = "rules_scala", version = "7.1.6")
+bazel_dep(name = "rules_nodejs", version = "6.7.3")
+bazel_dep(name = "build_stack_scala_gazelle", version = "0.1.1")
