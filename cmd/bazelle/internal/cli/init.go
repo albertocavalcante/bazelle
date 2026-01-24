@@ -76,6 +76,9 @@ var langDependencies = map[string][]dependency{
 		{name: "rules_cc", version: "0.2.16"},
 		{name: "gazelle_cc", version: "0.4.0"},
 	},
+	"groovy": {
+		{name: "rules_groovy", version: "0.0.7"},
+	},
 }
 
 type dependency struct {

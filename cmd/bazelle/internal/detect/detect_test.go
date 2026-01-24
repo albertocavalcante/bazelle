@@ -76,6 +76,19 @@ func TestDetectLanguages_Proto(t *testing.T) {
 	}
 }
 
+func TestDetectLanguages_Groovy(t *testing.T) {
+	tmpDir := t.TempDir()
+	createFile(t, tmpDir, "src/main/groovy/Main.groovy")
+
+	langs, err := detect.Languages(tmpDir)
+	if err != nil {
+		t.Fatalf("Languages() error = %v", err)
+	}
+	if !slices.Contains(langs, "groovy") {
+		t.Errorf("Languages() = %v, want to contain 'groovy'", langs)
+	}
+}
+
 func TestDetectLanguages_CC(t *testing.T) {
 	tmpDir := t.TempDir()
 	createFile(t, tmpDir, "src/main.cc")

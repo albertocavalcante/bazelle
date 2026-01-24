@@ -11,6 +11,7 @@ import (
 
 	// External language extensions
 	ccLang "github.com/EngFlow/gazelle_cc/language/cc"
+	groovyLang "github.com/albertocavalcante/bazelle/gazelle-groovy/groovy"
 	kotlinLang "github.com/albertocavalcante/bazelle/gazelle-kotlin/kotlin"
 	pythonLang "github.com/bazel-contrib/rules_python/gazelle/python"
 	bzlLang "github.com/bazelbuild/bazel-skylib/gazelle/bzl"
@@ -25,6 +26,7 @@ var Languages = []language.Language{
 	pythonLang.NewLanguage(),
 	ccLang.NewLanguage(),
 	kotlinLang.NewLanguage(),
+	groovyLang.NewLanguage(),
 }
 
 func main() {

@@ -15,6 +15,7 @@ var langExtensions = map[string][]string{
 	"java":   {".java"},
 	"python": {".py"},
 	"proto":  {".proto"},
+	"groovy": {".groovy"},
 	"cc":     {".cc", ".cpp", ".cxx", ".c", ".h", ".hpp", ".hxx"},
 }
 
