@@ -1,10 +1,8 @@
 package groovy
 
 import (
-	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/language"
@@ -94,7 +92,8 @@ func (g *groovyLang) generateTestRule(args language.GenerateArgs, gc *GroovyConf
 	}
 	name := baseName + "_test"
 
-	useSpock := shouldUseSpock(args.Dir, files, gc)
+	hasSpecFiles := hasSpockSpecFiles(files)
+	useSpock := shouldUseSpock(hasSpecFiles, gc)
 	macro := gc.TestMacro
 	if useSpock {
 		macro = gc.SpockTestMacro
@@ -102,12 +101,20 @@ func (g *groovyLang) generateTestRule(args language.GenerateArgs, gc *GroovyConf
 
 	r := rule.NewRule(macro, name)
 	if useSpock {
-		r.SetAttr("specs", rule.GlobValue{Patterns: []string{
-			"src/test/groovy/**/*.groovy",
-		}})
+		specPatterns := spockSpecPatterns()
+		if !hasSpecFiles {
+			specPatterns = []string{testGroovyPattern}
+		}
+		r.SetAttr("specs", rule.GlobValue{Patterns: specPatterns})
+		if hasSpecFiles {
+			r.SetAttr("groovy_srcs", rule.GlobValue{
+				Patterns: []string{testGroovyPattern},
+				Excludes: spockSpecPatterns(),
+			})
+		}
 	} else {
 		r.SetAttr("srcs", rule.GlobValue{Patterns: []string{
-			"src/test/groovy/**/*.groovy",
+			testGroovyPattern,
 		}})
 	}
 
@@ -118,34 +125,31 @@ func (g *groovyLang) generateTestRule(args language.GenerateArgs, gc *GroovyConf
 	return r
 }
 
-var (
-	spockImportPattern  = regexp.MustCompile(`\bspock\.lang\.Specification\b`)
-	spockExtendsPattern = regexp.MustCompile(`\bextends\s+(?:spock\.lang\.)?Specification\b`)
-)
+const testGroovyPattern = "src/test/groovy/**/*.groovy"
 
-func shouldUseSpock(dir string, files []string, gc *GroovyConfig) bool {
+func spockSpecPatterns() []string {
+	return []string{
+		"src/test/groovy/**/*Spec.groovy",
+		"src/test/groovy/**/*Specification.groovy",
+	}
+}
+
+func hasSpockSpecFiles(files []string) bool {
+	for _, rel := range files {
+		base := filepath.Base(rel)
+		if strings.HasSuffix(base, "Spec.groovy") || strings.HasSuffix(base, "Specification.groovy") {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldUseSpock(hasSpecFiles bool, gc *GroovyConfig) bool {
 	if gc.TestMacro == gc.SpockTestMacro {
 		return true
 	}
 	if !gc.SpockDetection {
 		return false
 	}
-
-	for _, rel := range files {
-		base := filepath.Base(rel)
-		if strings.HasSuffix(base, "Spec.groovy") || strings.HasSuffix(base, "Specification.groovy") {
-			return true
-		}
-
-		content, err := os.ReadFile(filepath.Join(dir, rel))
-		if err != nil {
-			log.Printf("WARNING: Failed to read Groovy test file %s: %v", rel, err)
-			continue
-		}
-		if spockImportPattern.Match(content) || spockExtendsPattern.Match(content) {
-			return true
-		}
-	}
-
-	return false
+	return hasSpecFiles
 }
