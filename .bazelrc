@@ -11,6 +11,9 @@ common --color=yes
 # Show verbose failures
 common --verbose_failures
 
+# Enable isolated extension usages (required for gazelle_rust crate_universe)
+common --experimental_isolated_extension_usages
+
 # Go configuration
 # CGO enabled (required for tree-sitter used by Python gazelle)
 # Using host C/C++ toolchain for now (non-hermetic)

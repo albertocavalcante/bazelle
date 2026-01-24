@@ -9,12 +9,14 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//cmd/bazelle/internal/cli",
+        "//gazelle-groovy/groovy",
         "//gazelle-kotlin/kotlin",
         "@bazel_gazelle//language",
         "@bazel_gazelle//language/go",
         "@bazel_gazelle//language/proto",
         "@bazel_skylib_gazelle_plugin//bzl",
         "@gazelle_cc//language/cc",
+        "@gazelle_rust//rust_language",
         "@rules_python_gazelle_plugin//python",
     ],
 )

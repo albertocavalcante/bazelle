@@ -1,0 +1,1 @@
+exports_files(["bzlmod_compat.patch"])

@@ -1,21 +1,19 @@
-# Gazelle-Kotlin Extension
+# Gazelle-Groovy Extension
 
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "kotlin",
+    name = "groovy",
     srcs = [
-        "comment_strip.go",
         "config.go",
+        "configure.go",
         "fix.go",
-        "fqn_scanner.go",
         "generate.go",
         "kinds.go",
         "lang.go",
-        "parser.go",
         "resolve.go",
     ],
-    importpath = "github.com/albertocavalcante/bazelle/gazelle-kotlin/kotlin",
+    importpath = "github.com/albertocavalcante/bazelle/gazelle-groovy/groovy",
     visibility = ["//visibility:public"],
     deps = [
         "@bazel_gazelle//config",
@@ -28,14 +26,9 @@ go_library(
 )
 
 go_test(
-    name = "kotlin_test",
-    srcs = [
-        "config_test.go",
-        "generate_test.go",
-        "kinds_test.go",
-        "parser_test.go",
-    ],
-    embed = [":kotlin"],
+    name = "groovy_test",
+    srcs = ["generate_test.go"],
+    embed = [":groovy"],
     deps = [
         "@bazel_gazelle//config",
         "@bazel_gazelle//language",

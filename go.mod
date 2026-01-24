@@ -7,6 +7,7 @@ require (
 	github.com/bazel-contrib/rules_python/gazelle v0.0.0-20260120082853-1ac5a19c30c3
 	github.com/bazelbuild/bazel-gazelle v0.47.0
 	github.com/bazelbuild/bazel-skylib v0.0.0-20251220030559-ea054fcaf08c
+	github.com/calsign/gazelle_rust v0.0.0-20260116161429-c029702902b7
 	github.com/kisielk/errcheck v1.9.0
 	github.com/spf13/cobra v1.10.2
 	go.uber.org/nilaway v0.0.0-20251208195206-89df5f7e6199

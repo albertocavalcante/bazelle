@@ -14,7 +14,8 @@ import (
 	groovyLang "github.com/albertocavalcante/bazelle/gazelle-groovy/groovy"
 	kotlinLang "github.com/albertocavalcante/bazelle/gazelle-kotlin/kotlin"
 	pythonLang "github.com/bazel-contrib/rules_python/gazelle/python"
-	bzlLang "github.com/bazelbuild/bazel-skylib/gazelle/bzl"
+	bzlLang "github.com/bazelbuild/bazel-skylib/gazelle"
+	rustLang "github.com/calsign/gazelle_rust/rust_language"
 )
 
 // Languages is the list of language extensions for gazelle
@@ -27,6 +28,7 @@ var Languages = []language.Language{
 	ccLang.NewLanguage(),
 	kotlinLang.NewLanguage(),
 	groovyLang.NewLanguage(),
+	rustLang.NewLanguage(),
 }
 
 func main() {
