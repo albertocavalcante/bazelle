@@ -97,6 +97,36 @@ class Commented
 	}
 }
 
+func TestParser_InlineBlockComments(t *testing.T) {
+	parser := NewParser()
+	content := `package com.example.inline /* package comment */
+
+import com.example.Foo /* import comment */
+import com.example.Bar /* comment */
+
+class Test
+`
+	result, err := parser.ParseContent(content, "Inline.kt")
+	if err != nil {
+		t.Fatalf("ParseContent failed: %v", err)
+	}
+
+	if result.Package != "com.example.inline" {
+		t.Errorf("Expected package 'com.example.inline', got '%s'", result.Package)
+	}
+
+	importSet := make(map[string]bool)
+	for _, imp := range result.Imports {
+		importSet[imp] = true
+	}
+	if !importSet["com.example.Foo"] {
+		t.Errorf("Expected import 'com.example.Foo', got %v", result.Imports)
+	}
+	if !importSet["com.example.Bar"] {
+		t.Errorf("Expected import 'com.example.Bar', got %v", result.Imports)
+	}
+}
+
 func TestParser_StarImports(t *testing.T) {
 	parser := NewParser()
 	content := `package com.example.test
@@ -564,6 +594,50 @@ class Service {
 	}
 	if !fqnSet["com.example.real.RealClass"] {
 		t.Errorf("Expected to detect com.example.real.RealClass")
+	}
+}
+
+func TestFQNScanner_InlineBlockComment(t *testing.T) {
+	scanner := NewFQNScanner()
+	content := `package com.example.test
+
+class Service {
+    fun process() = com.example.real.RealClass() /* trailing comment */
+}
+`
+	result := scanner.Scan(content, 2)
+
+	fqnSet := make(map[string]bool)
+	for _, fqn := range result.FQNs {
+		fqnSet[fqn] = true
+	}
+	if !fqnSet["com.example.real.RealClass"] {
+		t.Errorf("Expected to detect com.example.real.RealClass, got %v", result.FQNs)
+	}
+}
+
+func TestFQNScanner_BlockCommentAfterCode(t *testing.T) {
+	scanner := NewFQNScanner()
+	content := `package com.example.test
+
+class Service {
+    fun first() = com.example.foo.Foo() /* comment
+        continues
+    */
+    fun second() = com.example.bar.Bar()
+}
+`
+	result := scanner.Scan(content, 2)
+
+	fqnSet := make(map[string]bool)
+	for _, fqn := range result.FQNs {
+		fqnSet[fqn] = true
+	}
+	if !fqnSet["com.example.foo.Foo"] {
+		t.Errorf("Expected to detect com.example.foo.Foo, got %v", result.FQNs)
+	}
+	if !fqnSet["com.example.bar.Bar"] {
+		t.Errorf("Expected to detect com.example.bar.Bar, got %v", result.FQNs)
 	}
 }
 
