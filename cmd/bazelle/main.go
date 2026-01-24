@@ -10,6 +10,7 @@ import (
 	protoLang "github.com/bazelbuild/bazel-gazelle/language/proto"
 
 	// External language extensions
+	javaLang "github.com/bazel-contrib/rules_jvm/java/gazelle"
 	ccLang "github.com/EngFlow/gazelle_cc/language/cc"
 	groovyLang "github.com/albertocavalcante/bazelle/gazelle-groovy/groovy"
 	kotlinLang "github.com/albertocavalcante/bazelle/gazelle-kotlin/kotlin"
@@ -24,6 +25,7 @@ var Languages = []language.Language{
 	protoLang.NewLanguage(),
 	goLang.NewLanguage(),
 	bzlLang.NewLanguage(),
+	javaLang.NewLanguage(),
 	pythonLang.NewLanguage(),
 	ccLang.NewLanguage(),
 	kotlinLang.NewLanguage(),

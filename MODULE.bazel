@@ -74,18 +74,11 @@ single_version_override(
 
 # ==============================================================================
 # Java Support (contrib_rules_jvm includes java gazelle extension)
-# DISABLED: Bazel 9 compatibility requires patching - see third_party/patches/README.md
-# Root cause: grpc-java 1.71.0 uses built-in ProtoInfo (removed in Bazel 9)
-# Fix: grpc-java >= 1.76 loads ProtoInfo from @rules_proto (starlark)
-# References:
-#   - Issue: https://github.com/grpc/grpc-java/issues/12315
-#   - Fix PR: https://github.com/grpc/grpc-java/pull/12312
-#   - grpc-java releases: https://github.com/grpc/grpc-java/releases
-# TODO: Re-enable when contrib_rules_jvm updates grpc-java or BCR has grpc-java 1.76+
+# v0.32.0 fixes Bazel 9 compatibility (grpc-java updated to 1.78.0)
 # ==============================================================================
-# bazel_dep(name = "rules_java", version = "9.3.0")
-# bazel_dep(name = "rules_jvm_external", version = "6.9")
-# bazel_dep(name = "contrib_rules_jvm", version = "0.31.1")
+bazel_dep(name = "rules_java", version = "9.3.0")
+bazel_dep(name = "rules_jvm_external", version = "6.9")
+bazel_dep(name = "contrib_rules_jvm", version = "0.32.0")
 
 # ==============================================================================
 # Python Support (rules_python gazelle plugin)

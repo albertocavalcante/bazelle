@@ -15,6 +15,7 @@ go_library(
         "@bazel_gazelle//language/go",
         "@bazel_gazelle//language/proto",
         "@bazel_skylib_gazelle_plugin//bzl",
+        "@contrib_rules_jvm//java/gazelle",
         "@gazelle_cc//language/cc",
         "@gazelle_rust//rust_language",
         "@rules_python_gazelle_plugin//python",
