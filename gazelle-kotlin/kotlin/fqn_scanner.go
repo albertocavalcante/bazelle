@@ -118,8 +118,8 @@ func (s *FQNScanner) Scan(content string, codeStartLine int) *ScanResult {
 	}
 
 	fqnSet := make(map[string]bool)
-	inMultilineComment := false
 	inTripleQuote := false
+	inBlockComment := false
 
 	for lineNum := codeStartLine; lineNum < len(lines); lineNum++ {
 		line := lines[lineNum]
@@ -127,32 +127,9 @@ func (s *FQNScanner) Scan(content string, codeStartLine int) *ScanResult {
 		// Strip triple-quoted string content while tracking multi-line state.
 		line, inTripleQuote = stripTripleQuoted(line, inTripleQuote)
 
-		// Track multiline comments
-		if strings.Contains(line, "/*") && !strings.Contains(line, "*/") {
-			inMultilineComment = true
-			continue
-		}
-		if strings.Contains(line, "*/") {
-			inMultilineComment = false
-			continue
-		}
-		if inMultilineComment {
-			continue
-		}
+		line, inBlockComment = stripComments(line, inBlockComment)
 
-		// Skip lines that are just comments
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "//") {
-			continue
-		}
-
-		// Remove single-line comments from the line
-		if idx := strings.Index(line, "//"); idx >= 0 {
-			line = line[:idx]
-		}
-
-		// Skip lines that are inside triple-quoted strings
-		if inTripleQuote && strings.TrimSpace(line) == "" {
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
 

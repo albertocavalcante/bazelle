@@ -130,7 +130,7 @@ func (p *KotlinParser) ParseContent(content string, path string) (*ParseResult, 
 	// Increase buffer size to handle very long lines (minified code, generated files)
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, 1024*1024) // 1MB max token size
-	inMultilineComment := false
+	inBlockComment := false
 	lineNum := 0
 	importSectionEnded := false
 
@@ -138,36 +138,7 @@ func (p *KotlinParser) ParseContent(content string, path string) (*ParseResult, 
 		lineNum++
 		line := scanner.Text()
 
-		// Remove single-line comments FIRST to avoid false positives
-		// (e.g., "// comment with /* inside" should not trigger multi-line mode)
-		// But only if we're not already in a multi-line comment
-		if !inMultilineComment {
-			if idx := strings.Index(line, "//"); idx >= 0 {
-				line = line[:idx]
-			}
-		}
-
-		// Track multi-line comments
-		// Note: Kotlin does not support nested /* */ comments.
-		// This parser matches that behavior by ending at the first */
-		commentStart := strings.Index(line, "/*")
-		commentEnd := strings.Index(line, "*/")
-
-		if commentStart >= 0 && commentEnd < 0 {
-			inMultilineComment = true
-		}
-		if commentEnd >= 0 {
-			inMultilineComment = false
-			// Continue processing the rest of the line after */
-			if commentEnd+2 < len(line) {
-				line = line[commentEnd+2:]
-			} else {
-				continue
-			}
-		}
-		if inMultilineComment {
-			continue
-		}
+		line, inBlockComment = stripComments(line, inBlockComment)
 
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
