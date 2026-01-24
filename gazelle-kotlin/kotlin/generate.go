@@ -41,7 +41,7 @@ func (k *kotlinLang) GenerateRules(args language.GenerateArgs) language.Generate
 
 	// Generate test rule for test sources
 	if len(testFiles) > 0 {
-		testRule := k.generateTestRule(args, kc, testFiles)
+		testRule := k.generateTestRule(args, kc, testFiles, len(mainFiles) > 0)
 		if testRule != nil {
 			rules = append(rules, testRule)
 			imports = append(imports, nil)
@@ -63,7 +63,10 @@ func (k *kotlinLang) generateLibraryRule(args language.GenerateArgs, kc *KotlinC
 	}
 
 	r := rule.NewRule(kc.LibraryMacro, name)
-	r.SetAttr("srcs", []string{"glob([\"src/main/kotlin/**/*.kt\"])"})
+	r.SetAttr("srcs", rule.GlobValue{Patterns: []string{
+		"src/main/kotlin/**/*.kt",
+		"src/main/kotlin/**/*.kts",
+	}})
 	r.SetAttr("visibility", []string{kc.Visibility})
 
 	// Parse files to get package info
@@ -84,7 +87,7 @@ func (k *kotlinLang) generateLibraryRule(args language.GenerateArgs, kc *KotlinC
 }
 
 // generateTestRule creates a kt_jvm_test (or custom macro) rule.
-func (k *kotlinLang) generateTestRule(args language.GenerateArgs, kc *KotlinConfig, files []string) *rule.Rule {
+func (k *kotlinLang) generateTestRule(args language.GenerateArgs, kc *KotlinConfig, files []string, hasMain bool) *rule.Rule {
 	// Derive target name from directory name
 	baseName := filepath.Base(args.Dir)
 	if baseName == "." || baseName == "" {
@@ -93,7 +96,10 @@ func (k *kotlinLang) generateTestRule(args language.GenerateArgs, kc *KotlinConf
 	name := baseName + "_test"
 
 	r := rule.NewRule(kc.TestMacro, name)
-	r.SetAttr("srcs", []string{"glob([\"src/test/kotlin/**/*.kt\"])"})
+	r.SetAttr("srcs", rule.GlobValue{Patterns: []string{
+		"src/test/kotlin/**/*.kt",
+		"src/test/kotlin/**/*.kts",
+	}})
 
 	// Parse files to get test packages
 	fullPaths := make([]string, len(files))
@@ -114,10 +120,10 @@ func (k *kotlinLang) generateTestRule(args language.GenerateArgs, kc *KotlinConf
 	}
 
 	// Add associate to the library
-	r.SetAttr("associates", []string{":" + baseName})
-
-	// Add library as dep
-	r.SetAttr("deps", []string{":" + baseName})
+	if hasMain {
+		r.SetAttr("associates", []string{":" + baseName})
+		r.SetAttr("deps", []string{":" + baseName})
+	}
 
 	return r
 }
@@ -134,7 +140,7 @@ func findKotlinFiles(baseDir, subDir string) []string {
 		if err != nil {
 			return nil
 		}
-		if !info.IsDir() && strings.HasSuffix(path, ".kt") {
+		if !info.IsDir() && (strings.HasSuffix(path, ".kt") || strings.HasSuffix(path, ".kts")) {
 			relPath, _ := filepath.Rel(baseDir, path)
 			files = append(files, relPath)
 		}

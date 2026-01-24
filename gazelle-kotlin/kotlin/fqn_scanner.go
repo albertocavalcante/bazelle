@@ -119,21 +119,13 @@ func (s *FQNScanner) Scan(content string, codeStartLine int) *ScanResult {
 
 	fqnSet := make(map[string]bool)
 	inMultilineComment := false
-	tripleQuote := &tripleQuoteTracker{}
+	inTripleQuote := false
 
 	for lineNum := codeStartLine; lineNum < len(lines); lineNum++ {
 		line := lines[lineNum]
 
-		// Track triple-quoted strings (must be done before other processing)
-		wasInTripleQuote := tripleQuote.inTripleQuote
-		isTripleQuoteLine := tripleQuote.processLine(line)
-		if wasInTripleQuote && !strings.Contains(line, `"""`) {
-			// We're inside a triple-quoted string block
-			continue
-		}
-		if isTripleQuoteLine && !strings.Contains(line, `"""`) {
-			continue
-		}
+		// Strip triple-quoted string content while tracking multi-line state.
+		line, inTripleQuote = stripTripleQuoted(line, inTripleQuote)
 
 		// Track multiline comments
 		if strings.Contains(line, "/*") && !strings.Contains(line, "*/") {
@@ -160,7 +152,7 @@ func (s *FQNScanner) Scan(content string, codeStartLine int) *ScanResult {
 		}
 
 		// Skip lines that are inside triple-quoted strings
-		if tripleQuote.inTripleQuote {
+		if inTripleQuote && strings.TrimSpace(line) == "" {
 			continue
 		}
 
@@ -303,28 +295,39 @@ func removeStringLiterals(line string) string {
 	return result
 }
 
-// isInTripleQuotedString checks if we're currently inside a triple-quoted string block.
-// This is a simple state tracker - call it for each line.
-type tripleQuoteTracker struct {
-	inTripleQuote bool
-}
-
-func (t *tripleQuoteTracker) processLine(line string) bool {
-	// Count triple quotes on this line
-	count := strings.Count(line, `"""`)
-
-	if count == 0 {
-		return t.inTripleQuote
+// stripTripleQuoted removes triple-quoted string content from a single line.
+// It returns the line with string content removed and the updated inTripleQuote state.
+func stripTripleQuoted(line string, inTripleQuote bool) (string, bool) {
+	if !inTripleQuote && !strings.Contains(line, `"""`) {
+		return line, false
 	}
 
-	// Each pair of """ toggles the state
-	for i := 0; i < count; i++ {
-		t.inTripleQuote = !t.inTripleQuote
+	var out strings.Builder
+	i := 0
+
+	for i < len(line) {
+		if inTripleQuote {
+			end := strings.Index(line[i:], `"""`)
+			if end == -1 {
+				// Entire remainder is inside a triple-quoted string.
+				return out.String(), true
+			}
+			i += end + 3
+			inTripleQuote = false
+			continue
+		}
+
+		start := strings.Index(line[i:], `"""`)
+		if start == -1 {
+			out.WriteString(line[i:])
+			return out.String(), false
+		}
+		out.WriteString(line[i : i+start])
+		i += start + 3
+		inTripleQuote = true
 	}
 
-	// If odd number of """, we're toggling state
-	// Return true if we started in a triple quote or have an unclosed one
-	return count%2 == 1 || t.inTripleQuote
+	return out.String(), inTripleQuote
 }
 
 // ExtractPackageFromFQN extracts the package portion from a fully qualified name.

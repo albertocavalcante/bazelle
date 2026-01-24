@@ -953,6 +953,32 @@ class Test {
 	}
 }
 
+func TestFQNScanner_TripleQuotedStringSingleLine(t *testing.T) {
+	scanner := NewFQNScanner()
+	content := `package com.example.test
+
+class Test {
+    val text = """com.example.fake.FakeClass"""
+    fun real() = com.example.real.RealClass()
+}
+`
+	result := scanner.Scan(content, 2)
+
+	for _, fqn := range result.FQNs {
+		if strings.Contains(fqn, "FakeClass") {
+			t.Errorf("FQN in single-line triple-quoted string should not be detected: %s", fqn)
+		}
+	}
+
+	fqnSet := make(map[string]bool)
+	for _, fqn := range result.FQNs {
+		fqnSet[fqn] = true
+	}
+	if !fqnSet["com.example.real.RealClass"] {
+		t.Errorf("Should detect RealClass outside of triple-quoted string, got: %v", result.FQNs)
+	}
+}
+
 func TestFQNScanner_FQNWithOnlyTwoSegments(t *testing.T) {
 	scanner := NewFQNScanner()
 	content := `package com.example

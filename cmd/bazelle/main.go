@@ -10,10 +10,10 @@ import (
 	protoLang "github.com/bazelbuild/bazel-gazelle/language/proto"
 
 	// External language extensions
-	bzlLang "github.com/bazelbuild/bazel-skylib/gazelle"
 	ccLang "github.com/EngFlow/gazelle_cc/language/cc"
-	pythonLang "github.com/bazel-contrib/rules_python/gazelle/python"
 	kotlinLang "github.com/albertocavalcante/bazelle/gazelle-kotlin/kotlin"
+	pythonLang "github.com/bazel-contrib/rules_python/gazelle/python"
+	bzlLang "github.com/bazelbuild/bazel-skylib/gazelle/bzl"
 )
 
 // Languages is the list of language extensions for gazelle

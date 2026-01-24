@@ -87,11 +87,12 @@ func TestFindKotlinFiles_OnlyKotlinFiles(t *testing.T) {
 
 	// Create Kotlin and non-Kotlin files
 	files := map[string]bool{
-		"Test.kt":   true,  // Should be found
-		"Main.kt":   true,  // Should be found
-		"Test.java": false, // Should be ignored
-		"README.md": false, // Should be ignored
-		"build.txt": false, // Should be ignored
+		"Test.kt":    true,  // Should be found
+		"Main.kt":    true,  // Should be found
+		"Script.kts": true,  // Should be found
+		"Test.java":  false, // Should be ignored
+		"README.md":  false, // Should be ignored
+		"build.txt":  false, // Should be ignored
 	}
 
 	for filename := range files {
@@ -117,8 +118,9 @@ func TestFindKotlinFiles_OnlyKotlinFiles(t *testing.T) {
 
 	// Verify all found files are .kt files
 	for _, path := range result {
-		if filepath.Ext(path) != ".kt" {
-			t.Errorf("Expected only .kt files, found: %s", path)
+		ext := filepath.Ext(path)
+		if ext != ".kt" && ext != ".kts" {
+			t.Errorf("Expected only Kotlin files, found: %s", path)
 		}
 	}
 }
@@ -280,6 +282,14 @@ class TestMain {
 	if testRule.Name() == "" {
 		t.Error("Expected rule to have a name")
 	}
+
+	// Test-only modules should not reference a missing main library.
+	if deps := testRule.AttrStrings("deps"); len(deps) != 0 {
+		t.Errorf("Expected no deps for test-only module, got %v", deps)
+	}
+	if associates := testRule.AttrStrings("associates"); len(associates) != 0 {
+		t.Errorf("Expected no associates for test-only module, got %v", associates)
+	}
 }
 
 func TestGenerateRules_BothMainAndTest(t *testing.T) {
@@ -414,15 +424,23 @@ func TestGenerateRules_RuleAttributes(t *testing.T) {
 		t.Fatalf("Expected 1 rule, got %d", len(result.Gen))
 	}
 
-	rule := result.Gen[0]
+	genRule := result.Gen[0]
 
 	// Check srcs attribute
-	if srcs := rule.AttrStrings("srcs"); len(srcs) == 0 {
-		t.Error("Expected srcs attribute to be set")
+	srcsExpr := genRule.Attr("srcs")
+	if srcsExpr == nil {
+		t.Fatal("Expected srcs attribute to be set")
+	}
+	if glob, ok := rule.ParseGlobExpr(srcsExpr); ok {
+		if len(glob.Patterns) == 0 {
+			t.Error("Expected glob patterns to be set for srcs")
+		}
+	} else {
+		t.Error("Expected srcs to be a glob expression")
 	}
 
 	// Check visibility attribute
-	if vis := rule.AttrStrings("visibility"); len(vis) == 0 {
+	if vis := genRule.AttrStrings("visibility"); len(vis) == 0 {
 		t.Error("Expected visibility attribute to be set")
 	} else if vis[0] != "//custom:visibility" {
 		t.Errorf("Expected visibility '//custom:visibility', got '%s'", vis[0])
