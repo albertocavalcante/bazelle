@@ -26,6 +26,25 @@ pre-commit:
           fi
         done
 
+    binary-files:
+      run: |
+        for file in {staged_files}; do
+          if [ -f "$file" ]; then
+            # Check for compiled binaries (Mach-O, ELF, PE)
+            if file "$file" | grep -qE "(Mach-O|ELF|PE32|executable|shared object)"; then
+              echo "Error: $file appears to be a compiled binary"
+              exit 1
+            fi
+            # Check for common binary extensions
+            case "$file" in
+              *.exe|*.dll|*.so|*.dylib|*.a|*.o|*.pyc|*.class|*.jar|*.war|*.ear)
+                echo "Error: $file has a binary file extension"
+                exit 1
+                ;;
+            esac
+          fi
+        done
+
     bazel-lint:
       glob: '**/{BUILD,BUILD.bazel,WORKSPACE,WORKSPACE.bazel,MODULE.bazel,*.bzl}'
       run: buildifier -mode=check -lint=warn {staged_files}
