@@ -1,5 +1,6 @@
 # Bazel
 bazel-*
+/bazelle
 MODULE.bazel.lock
 user.bazelrc
 
