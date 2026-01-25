@@ -30,4 +30,8 @@ go_binary(
     name = "bazelle",
     embed = [":bazelle_lib"],
     visibility = ["//visibility:public"],
+    x_defs = {
+        "github.com/albertocavalcante/bazelle/cmd/bazelle/internal/cli.Version": "{STABLE_VERSION}",
+        "github.com/albertocavalcante/bazelle/cmd/bazelle/internal/cli.GitCommit": "{STABLE_GIT_COMMIT}",
+    },
 )

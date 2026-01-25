@@ -1,6 +1,18 @@
 # Bazelle - Gazelle Language Extensions
 # Bazel Configuration
 
+# ==============================================================================
+# Stamping Configuration
+# ==============================================================================
+# Enable stamping for release builds (injects version/commit into binaries)
+build --workspace_status_command=tools/scripts/workspace_status.sh
+
+# Stamp release builds by default (use --nostamp for dev builds if needed)
+build --stamp
+
+# ==============================================================================
+# Caching
+# ==============================================================================
 # Enable disk cache for faster rebuilds
 common --disk_cache=~/.cache/bazel-disk
 common --repository_cache=~/.cache/bazel-repo
@@ -33,6 +45,15 @@ build:ci --color=no
 build:ci --curses=no
 build:ci --show_timestamps
 build:ci --keep_going
+
+# ==============================================================================
+# IDE Integration
+# ==============================================================================
+# For gopls/IDE support, set in your shell:
+#   export GOPACKAGESDRIVER=$PWD/tools/gopackagesdriver.sh
+#
+# Or add to .envrc (if using direnv):
+#   export GOPACKAGESDRIVER=$PWD/tools/gopackagesdriver.sh
 
 # Allow user overrides
 try-import %workspace%/user.bazelrc
