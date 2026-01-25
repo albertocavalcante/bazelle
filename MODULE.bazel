@@ -21,6 +21,15 @@ bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.8.2")
 
 bazel_dep(name = "buildifier_prebuilt", version = "8.2.1.1", dev_dependency = True)
 
+# bazel_env.bzl - Virtual environment for Bazel-managed tools
+# Not yet in BCR, so we use git_override
+bazel_dep(name = "bazel_env.bzl", version = "0.6.0", dev_dependency = True)
+git_override(
+    module_name = "bazel_env.bzl",
+    remote = "https://github.com/buildbuddy-io/bazel_env.bzl.git",
+    tag = "v0.6.0",
+)
+
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 

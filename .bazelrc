@@ -4,11 +4,15 @@
 # ==============================================================================
 # Stamping Configuration
 # ==============================================================================
-# Enable stamping for release builds (injects version/commit into binaries)
+# Workspace status command provides git version/commit for stamped builds
 build --workspace_status_command=tools/scripts/workspace_status.sh
 
-# Stamp release builds by default (use --nostamp for dev builds if needed)
-build --stamp
+# By default, don't stamp (faster builds, better caching)
+build --nostamp
+
+# Release config: enable stamping for versioned binaries
+# Usage: bazel build --config=release //:bazelle
+build:release --stamp
 
 # ==============================================================================
 # Caching
@@ -49,11 +53,12 @@ build:ci --keep_going
 # ==============================================================================
 # IDE Integration
 # ==============================================================================
-# For gopls/IDE support, set in your shell:
-#   export GOPACKAGESDRIVER=$PWD/tools/gopackagesdriver.sh
+# For full IDE support with Bazel-managed tools:
+#   1. Install direnv: https://direnv.net/
+#   2. Run: bazel run //:bazel_env
+#   3. Run: direnv allow
 #
-# Or add to .envrc (if using direnv):
-#   export GOPACKAGESDRIVER=$PWD/tools/gopackagesdriver.sh
+# This sets up GOPACKAGESDRIVER and adds tools to PATH.
 
 # Allow user overrides
 try-import %workspace%/user.bazelrc

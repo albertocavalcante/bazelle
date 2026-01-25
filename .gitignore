@@ -1,9 +1,13 @@
 # Bazel
 bazel-*
 MODULE.bazel.lock
+user.bazelrc
 
 # Bazelle state
 .bazelle/
+
+# bazel_env.bzl generated environment
+.bazel_env/
 
 # Temp
 .tmp/

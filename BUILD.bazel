@@ -3,6 +3,7 @@
 # This is the root BUILD file for the bazelle monorepo.
 # Run `bazel run //:gazelle` to update BUILD files.
 
+load("@bazel_env.bzl", "bazel_env")
 load("@bazel_gazelle//:def.bzl", "gazelle")
 load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 
@@ -60,6 +61,21 @@ package(default_visibility = ["//visibility:public"])
 # C++ Extension Configuration (gazelle_cc)
 # ==============================================================================
 # gazelle:cc_generate true
+
+# ==============================================================================
+# Development Environment (bazel_env.bzl)
+# ==============================================================================
+
+# Virtual environment for Bazel-managed tools.
+# Run `bazel run //:bazel_env` and follow the direnv setup instructions.
+bazel_env(
+    name = "bazel_env",
+    tools = {
+        "bazelle": "//cmd/bazelle",
+        "buildifier": "@buildifier_prebuilt//:buildifier",
+        "go": "@rules_go//go",
+    },
+)
 
 # ==============================================================================
 # Bazelle Binary Alias
