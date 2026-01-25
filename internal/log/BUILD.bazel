@@ -1,23 +1,30 @@
 # Structured Logging Package
 #
 # Provides structured logging with verbosity levels for Bazelle.
-# Wraps Go's log/slog package following kubectl/klog patterns.
+# Wraps uber-go/zap following kubectl/klog patterns.
 
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "log",
     srcs = [
-        "handler.go",
         "levels.go",
         "log.go",
     ],
     importpath = "github.com/albertocavalcante/bazelle/internal/log",
     visibility = ["//:__subpackages__"],
+    deps = [
+        "@org_uber_go_zap//:zap",
+        "@org_uber_go_zap//zapcore",
+    ],
 )
 
 go_test(
     name = "log_test",
     srcs = ["log_test.go"],
     embed = [":log"],
+    deps = [
+        "@org_uber_go_zap//:zap",
+        "@org_uber_go_zap//zapcore",
+    ],
 )

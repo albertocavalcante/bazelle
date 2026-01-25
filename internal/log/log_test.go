@@ -2,21 +2,23 @@ package log
 
 import (
 	"bytes"
-	"log/slog"
 	"strings"
 	"testing"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func TestVerbosityToLevel(t *testing.T) {
 	tests := []struct {
 		verbosity int
-		expected  slog.Level
+		expected  zapcore.Level
 	}{
-		{0, slog.LevelError},
-		{-1, slog.LevelError},
-		{1, slog.LevelWarn},
-		{2, slog.LevelInfo},
-		{3, slog.LevelDebug},
+		{0, zapcore.ErrorLevel},
+		{-1, zapcore.ErrorLevel},
+		{1, zapcore.WarnLevel},
+		{2, zapcore.InfoLevel},
+		{3, zapcore.DebugLevel},
 		{4, LevelTrace},
 		{5, LevelTrace}, // anything > 4 maps to trace
 	}
@@ -31,13 +33,13 @@ func TestVerbosityToLevel(t *testing.T) {
 
 func TestLevelToVerbosity(t *testing.T) {
 	tests := []struct {
-		level    slog.Level
+		level    zapcore.Level
 		expected int
 	}{
-		{slog.LevelError, VerbosityError},
-		{slog.LevelWarn, VerbosityWarn},
-		{slog.LevelInfo, VerbosityInfo},
-		{slog.LevelDebug, VerbosityDebug},
+		{zapcore.ErrorLevel, VerbosityError},
+		{zapcore.WarnLevel, VerbosityWarn},
+		{zapcore.InfoLevel, VerbosityInfo},
+		{zapcore.DebugLevel, VerbosityDebug},
 		{LevelTrace, VerbosityTrace},
 	}
 
@@ -51,14 +53,14 @@ func TestLevelToVerbosity(t *testing.T) {
 
 func TestLevelName(t *testing.T) {
 	tests := []struct {
-		level    slog.Level
+		level    zapcore.Level
 		expected string
 	}{
 		{LevelTrace, "TRACE"},
-		{slog.LevelDebug, "DEBUG"},
-		{slog.LevelInfo, "INFO"},
-		{slog.LevelWarn, "WARN"},
-		{slog.LevelError, "ERROR"},
+		{zapcore.DebugLevel, "DEBUG"},
+		{zapcore.InfoLevel, "INFO"},
+		{zapcore.WarnLevel, "WARN"},
+		{zapcore.ErrorLevel, "ERROR"},
 	}
 
 	for _, tt := range tests {
@@ -69,19 +71,22 @@ func TestLevelName(t *testing.T) {
 	}
 }
 
+// testLogger creates a test logger that writes to a buffer
+func testLogger(buf *bytes.Buffer, level zapcore.Level) *zap.Logger {
+	encoderConfig := zap.NewDevelopmentEncoderConfig()
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	encoder := zapcore.NewConsoleEncoder(encoderConfig)
+
+	core := zapcore.NewCore(
+		encoder,
+		zapcore.AddSync(buf),
+		level,
+	)
+
+	return zap.New(core)
+}
+
 func TestInit(t *testing.T) {
-	var buf bytes.Buffer
-
-	// Initialize with a custom output for testing
-	level = new(slog.LevelVar)
-	handler := NewHandler(HandlerOptions{
-		Level:  level,
-		Format: "text",
-		Output: &buf,
-	})
-	newLogger := slog.New(handler)
-	logger.Store(newLogger)
-
 	// Test that Init sets verbosity correctly
 	Init(2, "text")
 	if Verbosity() != 2 {
@@ -107,19 +112,13 @@ func TestV(t *testing.T) {
 	var buf bytes.Buffer
 
 	// Setup logger with custom output
-	level = new(slog.LevelVar)
-	level.Set(VerbosityToLevel(2))
-	handler := NewHandler(HandlerOptions{
-		Level:  level,
-		Format: "text",
-		Output: &buf,
-	})
-	newLogger := slog.New(handler)
-	logger.Store(newLogger)
+	testLog := testLogger(&buf, zapcore.InfoLevel)
+	logger.Store(testLog)
+	sugar.Store(testLog.Sugar())
 	verbosity.Store(2)
 
 	// V(2) should log at info level (v=2)
-	V(2).Info("should appear", "key", "value")
+	V(2).Infow("should appear", "key", "value")
 	if !strings.Contains(buf.String(), "should appear") {
 		t.Errorf("V(2) should log when verbosity is 2, got: %s", buf.String())
 	}
@@ -127,7 +126,7 @@ func TestV(t *testing.T) {
 	buf.Reset()
 
 	// V(3) should not log when verbosity is 2
-	V(3).Info("should not appear", "key", "value")
+	V(3).Infow("should not appear", "key", "value")
 	if strings.Contains(buf.String(), "should not appear") {
 		t.Errorf("V(3) should not log when verbosity is 2, got: %s", buf.String())
 	}
@@ -136,20 +135,14 @@ func TestV(t *testing.T) {
 func TestWith(t *testing.T) {
 	var buf bytes.Buffer
 
-	level = new(slog.LevelVar)
-	level.Set(slog.LevelInfo)
-	handler := NewHandler(HandlerOptions{
-		Level:  level,
-		Format: "text",
-		Output: &buf,
-	})
-	newLogger := slog.New(handler)
-	logger.Store(newLogger)
+	testLog := testLogger(&buf, zapcore.InfoLevel)
+	logger.Store(testLog)
+	sugar.Store(testLog.Sugar())
 
 	componentLogger := With("component", "test")
-	componentLogger.Info("test message")
+	componentLogger.Infow("test message")
 
-	if !strings.Contains(buf.String(), "component=test") {
+	if !strings.Contains(buf.String(), "component") || !strings.Contains(buf.String(), "test") {
 		t.Errorf("With should add context, got: %s", buf.String())
 	}
 }
@@ -157,51 +150,36 @@ func TestWith(t *testing.T) {
 func TestComponent(t *testing.T) {
 	var buf bytes.Buffer
 
-	level = new(slog.LevelVar)
-	level.Set(slog.LevelInfo)
-	handler := NewHandler(HandlerOptions{
-		Level:  level,
-		Format: "text",
-		Output: &buf,
-	})
-	newLogger := slog.New(handler)
-	logger.Store(newLogger)
+	testLog := testLogger(&buf, zapcore.InfoLevel)
+	logger.Store(testLog)
+	sugar.Store(testLog.Sugar())
 
 	componentLogger := Component("mycomponent")
-	componentLogger.Info("test message")
+	componentLogger.Infow("test message")
 
-	if !strings.Contains(buf.String(), "component=mycomponent") {
+	if !strings.Contains(buf.String(), "component") || !strings.Contains(buf.String(), "mycomponent") {
 		t.Errorf("Component should add component context, got: %s", buf.String())
 	}
 }
 
-func TestNewHandler_JSON(t *testing.T) {
+func TestJSON(t *testing.T) {
 	var buf bytes.Buffer
 
-	handler := NewHandler(HandlerOptions{
-		Level:  slog.LevelInfo,
-		Format: "json",
-		Output: &buf,
-	})
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	encoder := zapcore.NewJSONEncoder(encoderConfig)
 
-	l := slog.New(handler)
-	l.Info("test", "key", "value")
+	core := zapcore.NewCore(
+		encoder,
+		zapcore.AddSync(&buf),
+		zapcore.InfoLevel,
+	)
+
+	l := zap.New(core)
+	l.Sugar().Infow("test", "key", "value")
 
 	// JSON output should contain the structured fields
 	if !strings.Contains(buf.String(), `"key":"value"`) {
 		t.Errorf("JSON handler should output JSON, got: %s", buf.String())
-	}
-}
-
-func TestNewHandler_DefaultOutput(t *testing.T) {
-	// Ensure we can create a handler with nil output (defaults to stderr)
-	handler := NewHandler(HandlerOptions{
-		Level:  slog.LevelInfo,
-		Format: "text",
-		Output: nil, // should default to stderr
-	})
-
-	if handler == nil {
-		t.Error("NewHandler should not return nil")
 	}
 }

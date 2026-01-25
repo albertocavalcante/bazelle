@@ -28,23 +28,23 @@ const GlobalConfigDir = "bazelle"
 // CLI flags are applied separately after Load() returns.
 func Load() *Config {
 	cfg := NewConfig()
-	log.V(3).Debug("loading config", "defaults", cfg.Languages.Enabled)
+	log.V(3).Debugw("loading config", "defaults", cfg.Languages.Enabled)
 
 	// Layer 2: Global user config
 	if globalCfg := loadGlobalConfig(); globalCfg != nil {
-		log.V(2).Info("loaded global config", "path", GetGlobalConfigPath())
+		log.V(2).Infow("loaded global config", "path", GetGlobalConfigPath())
 		cfg.Merge(globalCfg)
 	}
 
 	// Layer 3: Project config
 	if projectCfg := loadProjectConfig(); projectCfg != nil {
-		log.V(2).Info("loaded project config")
+		log.V(2).Infow("loaded project config")
 		cfg.Merge(projectCfg)
 	}
 
 	// Layer 4: Environment variables
 	applyEnvironmentVariables(cfg)
-	log.V(3).Debug("final config", "languages", cfg.GetEnabledLanguages())
+	log.V(3).Debugw("final config", "languages", cfg.GetEnabledLanguages())
 
 	return cfg
 }

@@ -1,11 +1,12 @@
 // Package log provides structured logging with verbosity levels for Bazelle.
-// It wraps Go's log/slog package and follows kubectl/klog patterns.
+// It wraps uber-go/zap and follows kubectl/klog patterns.
 package log
 
-import "log/slog"
+import "go.uber.org/zap/zapcore"
 
 // LevelTrace is a custom trace level (more verbose than debug).
-const LevelTrace = slog.Level(-8)
+// Zap doesn't have trace, so we use a custom level below Debug (-1).
+const LevelTrace = zapcore.Level(-2)
 
 // Verbosity level constants for documentation and reference.
 const (
@@ -16,52 +17,42 @@ const (
 	VerbosityTrace = 4 // + Trace (function entry/exit, full data dumps)
 )
 
-// VerbosityToLevel maps -v=N to slog level.
-func VerbosityToLevel(v int) slog.Level {
+// VerbosityToLevel maps -v=N to zap level.
+func VerbosityToLevel(v int) zapcore.Level {
 	switch {
 	case v <= 0:
-		return slog.LevelError
+		return zapcore.ErrorLevel
 	case v == 1:
-		return slog.LevelWarn
+		return zapcore.WarnLevel
 	case v == 2:
-		return slog.LevelInfo
+		return zapcore.InfoLevel
 	case v == 3:
-		return slog.LevelDebug
+		return zapcore.DebugLevel
 	default:
 		return LevelTrace
 	}
 }
 
-// LevelToVerbosity maps slog level to -v=N (for display).
-func LevelToVerbosity(l slog.Level) int {
+// LevelToVerbosity maps zap level to -v=N (for display).
+func LevelToVerbosity(l zapcore.Level) int {
 	switch {
-	case l >= slog.LevelError:
+	case l >= zapcore.ErrorLevel:
 		return VerbosityError
-	case l >= slog.LevelWarn:
+	case l >= zapcore.WarnLevel:
 		return VerbosityWarn
-	case l >= slog.LevelInfo:
+	case l >= zapcore.InfoLevel:
 		return VerbosityInfo
-	case l >= slog.LevelDebug:
+	case l >= zapcore.DebugLevel:
 		return VerbosityDebug
 	default:
 		return VerbosityTrace
 	}
 }
 
-// LevelName returns the name for a slog level, including custom levels.
-func LevelName(l slog.Level) string {
-	switch l {
-	case LevelTrace:
+// LevelName returns the name for a zap level, including custom levels.
+func LevelName(l zapcore.Level) string {
+	if l == LevelTrace {
 		return "TRACE"
-	case slog.LevelDebug:
-		return "DEBUG"
-	case slog.LevelInfo:
-		return "INFO"
-	case slog.LevelWarn:
-		return "WARN"
-	case slog.LevelError:
-		return "ERROR"
-	default:
-		return l.String()
 	}
+	return l.CapitalString()
 }

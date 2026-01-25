@@ -64,7 +64,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	log.V(2).Info("starting update",
+	log.V(2).Infow("starting update",
 		"dir", wd,
 		"incremental", updateFlags.incremental,
 		"check", updateFlags.check)
@@ -102,7 +102,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	log.V(2).Info("update complete", "duration", time.Since(start))
+	log.V(2).Infow("update complete", "duration", time.Since(start))
 	return nil
 }
 

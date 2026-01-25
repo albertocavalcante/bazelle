@@ -13,6 +13,7 @@ require (
 	github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82
 	github.com/spf13/cobra v1.10.2
 	go.uber.org/nilaway v0.0.0-20251208195206-89df5f7e6199
+	go.uber.org/zap v1.27.0
 	golang.org/x/term v0.39.0
 	golang.org/x/tools v0.36.0
 )
@@ -27,6 +28,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/tetratelabs/wazero v1.8.2 // indirect
+	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/mod v0.27.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect

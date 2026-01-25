@@ -54,7 +54,7 @@ var languageOrder = []string{
 // Languages are returned in a consistent order (proto first, etc.).
 func LoadLanguages(cfg *config.Config) []language.Language {
 	enabled := cfg.GetEnabledLanguages()
-	log.V(2).Info("loading languages", "enabled", enabled)
+	log.V(2).Infow("loading languages", "enabled", enabled)
 
 	// Build a set of enabled languages for quick lookup
 	enabledSet := make(map[string]bool, len(enabled))
@@ -71,14 +71,14 @@ func LoadLanguages(cfg *config.Config) []language.Language {
 		factory, ok := factories[name]
 		if !ok {
 			// Language not available (e.g., java, scala, bzl)
-			log.V(3).Debug("language not available", "name", name)
+			log.V(3).Debugw("language not available", "name", name)
 			continue
 		}
 		languages = append(languages, factory())
-		log.V(3).Debug("loaded language", "name", name)
+		log.V(3).Debugw("loaded language", "name", name)
 	}
 
-	log.V(2).Info("languages loaded", "count", len(languages))
+	log.V(2).Infow("languages loaded", "count", len(languages))
 	return languages
 }
 

@@ -440,14 +440,14 @@ func (b *HybridBackend) ParseContent(ctx context.Context, content, path string) 
 
 	if b.logDiffs && hErr == nil && tsErr == nil {
 		if diff := compareResults(hResult, tsResult); diff.HasDifferences() {
-			log.V(3).Debug("hybrid parser diff", "path", path, "diff", diff.String())
+			log.V(3).Debugw("hybrid parser diff", "path", path, "diff", diff.String())
 		}
 	}
 
 	// Return based on primary preference with fallback
 	if b.primary == BackendTreeSitter {
 		if tsErr != nil {
-			log.V(3).Debug("hybrid tree-sitter failed, using heuristic",
+			log.V(3).Debugw("hybrid tree-sitter failed, using heuristic",
 				"path", path, "error", tsErr)
 			return hResult, hErr
 		}
@@ -455,7 +455,7 @@ func (b *HybridBackend) ParseContent(ctx context.Context, content, path string) 
 	}
 
 	if hErr != nil {
-		log.V(3).Debug("hybrid heuristic failed, using tree-sitter",
+		log.V(3).Debugw("hybrid heuristic failed, using tree-sitter",
 			"path", path, "error", hErr)
 		return tsResult, tsErr
 	}
