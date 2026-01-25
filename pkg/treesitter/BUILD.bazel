@@ -1,0 +1,67 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# Tree-sitter abstraction layer with pluggable backends.
+#
+# CGO Backend: Uses smacker/go-tree-sitter (requires CGO)
+# Wazero Backend: Uses malivvan/tree-sitter via WASM (pure Go)
+#
+# NOTE: Some go-tree-sitter language parsers (php, sql) have include path
+# issues in Bazel. We only include languages that build correctly.
+
+go_library(
+    name = "treesitter",
+    srcs = [
+        "backend_cgo.go",
+        "backend_cgo_stub.go",
+        "backend_wazero.go",
+        "registry.go",
+        "types.go",
+    ],
+    cgo = True,
+    importpath = "github.com/albertocavalcante/bazelle/pkg/treesitter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_malivvan_tree_sitter//:tree-sitter",
+        # CGO backend dependencies
+        # Only include languages that build correctly (no tree_sitter/ include issues)
+        "@com_github_smacker_go_tree_sitter//:go-tree-sitter",
+        "@com_github_smacker_go_tree_sitter//bash",
+        "@com_github_smacker_go_tree_sitter//c",
+        "@com_github_smacker_go_tree_sitter//cpp",
+        "@com_github_smacker_go_tree_sitter//csharp",
+        "@com_github_smacker_go_tree_sitter//css",
+        "@com_github_smacker_go_tree_sitter//cue",
+        "@com_github_smacker_go_tree_sitter//dockerfile",
+        "@com_github_smacker_go_tree_sitter//elixir",
+        "@com_github_smacker_go_tree_sitter//elm",
+        "@com_github_smacker_go_tree_sitter//golang",
+        "@com_github_smacker_go_tree_sitter//groovy",
+        "@com_github_smacker_go_tree_sitter//hcl",
+        "@com_github_smacker_go_tree_sitter//html",
+        "@com_github_smacker_go_tree_sitter//java",
+        "@com_github_smacker_go_tree_sitter//javascript",
+        "@com_github_smacker_go_tree_sitter//kotlin",
+        "@com_github_smacker_go_tree_sitter//lua",
+        # "@com_github_smacker_go_tree_sitter//markdown",  # Has tree_sitter/ include issues
+        "@com_github_smacker_go_tree_sitter//ocaml",
+        # "@com_github_smacker_go_tree_sitter//php",  # Has tree_sitter/ include issues
+        "@com_github_smacker_go_tree_sitter//protobuf",
+        "@com_github_smacker_go_tree_sitter//python",
+        "@com_github_smacker_go_tree_sitter//ruby",
+        "@com_github_smacker_go_tree_sitter//rust",
+        "@com_github_smacker_go_tree_sitter//scala",
+        # "@com_github_smacker_go_tree_sitter//sql",  # Has tree_sitter/ include issues
+        "@com_github_smacker_go_tree_sitter//svelte",
+        "@com_github_smacker_go_tree_sitter//swift",
+        "@com_github_smacker_go_tree_sitter//toml",
+        "@com_github_smacker_go_tree_sitter//typescript/tsx",
+        "@com_github_smacker_go_tree_sitter//typescript/typescript",
+        "@com_github_smacker_go_tree_sitter//yaml",
+    ],
+)
+
+go_test(
+    name = "treesitter_test",
+    srcs = ["treesitter_test.go"],
+    embed = [":treesitter"],
+)
