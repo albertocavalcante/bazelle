@@ -30,7 +30,7 @@ The --json flag outputs the result as JSON for scripting.`,
 }
 
 func init() {
-	statusCmd.Flags().BoolVarP(&statusFlags.verbose, "verbose", "v", false,
+	statusCmd.Flags().BoolVar(&statusFlags.verbose, "verbose", false,
 		"Show individual file changes")
 	statusCmd.Flags().BoolVar(&statusFlags.json, "json", false,
 		"Output as JSON")

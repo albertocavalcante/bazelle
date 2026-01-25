@@ -50,7 +50,7 @@ func init() {
 		"Debounce window in milliseconds")
 	watchCmd.Flags().StringSliceVar(&watchFlags.languages, "languages", nil,
 		"Only watch specific languages (comma-separated)")
-	watchCmd.Flags().BoolVarP(&watchFlags.verbose, "verbose", "v", false,
+	watchCmd.Flags().BoolVar(&watchFlags.verbose, "verbose", false,
 		"Show file-level changes")
 	watchCmd.Flags().BoolVar(&watchFlags.json, "json", false,
 		"Stream JSON events (for tooling integration)")

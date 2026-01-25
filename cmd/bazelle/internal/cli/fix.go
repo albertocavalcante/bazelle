@@ -37,7 +37,7 @@ func init() {
 		"Check if BUILD files need fixing (exit 1 if changes needed)")
 	fixCmd.Flags().BoolVar(&fixFlags.dryRun, "dry-run", false,
 		"Show what would change without applying")
-	fixCmd.Flags().BoolVarP(&fixFlags.verbose, "verbose", "v", false,
+	fixCmd.Flags().BoolVar(&fixFlags.verbose, "verbose", false,
 		"Show detailed output")
 
 	rootCmd.AddCommand(fixCmd)

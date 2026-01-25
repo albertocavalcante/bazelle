@@ -47,7 +47,7 @@ func init() {
 		"Check if BUILD files are up to date (exit 1 if changes needed)")
 	updateCmd.Flags().StringSliceVar(&updateFlags.languages, "languages", nil,
 		"Only run specific language extensions (comma-separated)")
-	updateCmd.Flags().BoolVarP(&updateFlags.verbose, "verbose", "v", false,
+	updateCmd.Flags().BoolVar(&updateFlags.verbose, "verbose", false,
 		"Show detailed output")
 	updateCmd.Flags().BoolVar(&updateFlags.incremental, "incremental", false,
 		"Only update directories with changed source files")
