@@ -40,6 +40,10 @@ common --experimental_isolated_extension_usages
 # Java configuration - use remote JDK for hermetic builds
 build --java_runtime_version=remotejdk_21
 
+# Protobuf configuration - use prebuilt protoc binary (avoid compiling from source)
+# See: https://blog.aspect.build/bazel-9-protobuf
+common --@protobuf//bazel/toolchains:prefer_prebuilt_protoc
+
 # Test configuration
 test --test_output=errors
 
