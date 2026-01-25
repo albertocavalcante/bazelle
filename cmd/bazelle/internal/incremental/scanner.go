@@ -5,33 +5,9 @@ import (
 	"io/fs"
 	"path/filepath"
 	"strings"
+
+	"github.com/albertocavalcante/bazelle/cmd/bazelle/internal/langs"
 )
-
-// defaultExtensions maps language names to their file extensions.
-var defaultExtensions = map[string][]string{
-	"go":     {".go"},
-	"kotlin": {".kt", ".kts"},
-	"java":   {".java"},
-	"python": {".py"},
-	"proto":  {".proto"},
-	"groovy": {".groovy"},
-	"scala":  {".scala", ".sc"},
-	"cc":     {".cc", ".cpp", ".cxx", ".c", ".h", ".hpp", ".hxx"},
-	"rust":   {".rs"},
-}
-
-// defaultIgnoredDirs contains directory prefixes to skip during scanning.
-var defaultIgnoredDirs = []string{
-	"bazel-",
-	".",
-	"node_modules",
-	"__pycache__",
-	"vendor",
-	"target",
-	"build",
-	"out",
-	"dist",
-}
 
 // ScanConfig configures the scanner.
 type ScanConfig struct {
@@ -49,29 +25,12 @@ type Scanner struct {
 
 // NewScanner creates a scanner with the given config.
 func NewScanner(cfg ScanConfig) *Scanner {
-	extensions := make(map[string]bool)
-
-	if len(cfg.Languages) == 0 {
-		// Use all known extensions
-		for _, exts := range defaultExtensions {
-			for _, ext := range exts {
-				extensions[ext] = true
-			}
-		}
-	} else {
-		// Use only specified languages
-		for _, lang := range cfg.Languages {
-			if exts, ok := defaultExtensions[lang]; ok {
-				for _, ext := range exts {
-					extensions[ext] = true
-				}
-			}
-		}
-	}
+	// Build extension filter from shared config
+	extensions := langs.ExtensionSet(cfg.Languages)
 
 	// Combine default and custom ignored dirs
-	ignoreDirs := make([]string, len(defaultIgnoredDirs))
-	copy(ignoreDirs, defaultIgnoredDirs)
+	ignoreDirs := make([]string, len(langs.IgnoredDirs))
+	copy(ignoreDirs, langs.IgnoredDirs)
 	ignoreDirs = append(ignoreDirs, cfg.IgnoreDirs...)
 
 	return &Scanner{

@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "watch",
+    srcs = [
+        "debouncer.go",
+        "logger.go",
+        "watcher.go",
+    ],
+    importpath = "github.com/albertocavalcante/bazelle/cmd/bazelle/internal/watch",
+    visibility = ["//cmd/bazelle:__subpackages__"],
+    deps = [
+        "//cmd/bazelle/internal/incremental",
+        "//cmd/bazelle/internal/langs",
+        "@bazel_gazelle//language",
+        "@bazel_gazelle//runner",
+        "@com_github_fsnotify_fsnotify//:fsnotify",
+        "@org_golang_x_term//:term",
+    ],
+)
+
+go_test(
+    name = "watch_test",
+    srcs = [
+        "debouncer_test.go",
+        "logger_test.go",
+        "watcher_test.go",
+    ],
+    embed = [":watch"],
+)

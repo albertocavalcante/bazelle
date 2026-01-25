@@ -23,6 +23,7 @@ require (
 	github.com/bazelbuild/buildtools v0.0.0-20250930140053-2eb4fccefb52 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.9.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
+	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -30,7 +31,8 @@ require (
 	github.com/tetratelabs/wazero v1.8.2 // indirect
 	golang.org/x/mod v0.27.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/term v0.39.0 // indirect
 	golang.org/x/tools/go/vcs v0.1.0-deprecated // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
