@@ -3,39 +3,17 @@ package main
 
 import (
 	"github.com/albertocavalcante/bazelle/cmd/bazelle/internal/cli"
-
-	// Language extensions for gazelle
-	"github.com/bazelbuild/bazel-gazelle/language"
-	goLang "github.com/bazelbuild/bazel-gazelle/language/go"
-	protoLang "github.com/bazelbuild/bazel-gazelle/language/proto"
-
-	// External language extensions
-	javaLang "github.com/bazel-contrib/rules_jvm/java/gazelle"
-	ccLang "github.com/EngFlow/gazelle_cc/language/cc"
-	groovyLang "github.com/albertocavalcante/bazelle/gazelle-groovy/groovy"
-	kotlinLang "github.com/albertocavalcante/bazelle/gazelle-kotlin/kotlin"
-	pythonLang "github.com/bazel-contrib/rules_python/gazelle/python"
-	bzlLang "github.com/bazelbuild/bazel-skylib/gazelle"
-	rustLang "github.com/calsign/gazelle_rust/rust_language"
-	scalaLang "github.com/stackb/scala-gazelle/language/scala"
+	"github.com/albertocavalcante/bazelle/pkg/config"
+	"github.com/albertocavalcante/bazelle/pkg/registry"
 )
 
-// Languages is the list of language extensions for gazelle
-// Order matters: proto should come first, then language-specific extensions
-var Languages = []language.Language{
-	protoLang.NewLanguage(),
-	goLang.NewLanguage(),
-	bzlLang.NewLanguage(),
-	javaLang.NewLanguage(),
-	scalaLang.NewLanguage(),
-	pythonLang.NewLanguage(),
-	ccLang.NewLanguage(),
-	kotlinLang.NewLanguage(),
-	groovyLang.NewLanguage(),
-	rustLang.NewLanguage(),
-}
-
 func main() {
-	cli.SetLanguages(Languages)
+	// Load configuration from files (built-in -> user -> project -> env -> flags)
+	cfg := config.Load()
+
+	// Load languages based on configuration
+	languages := registry.LoadLanguages(cfg)
+
+	cli.SetLanguages(languages)
 	cli.Execute()
 }

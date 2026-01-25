@@ -1,0 +1,52 @@
+# Project-level configuration for Bazelle
+# Place this file at the root of your project as:
+#   - bazelle.toml (recommended)
+#   - .bazelle/config.toml
+#
+# This configuration overrides global user settings for this project.
+
+[languages]
+# Languages to enable for this project
+enabled = ["go", "kotlin", "python", "proto"]
+
+# Languages to explicitly disable (takes precedence)
+disabled = ["java", "scala"]
+
+[go]
+# Use modern import-based naming
+naming_convention = "import"
+naming_convention_external = "import"
+
+[kotlin]
+# Enable tree-sitter parser for more accurate parsing
+parser_backend = "treesitter"
+
+# Enable FQN scanning for better dependency detection
+# fqn_scanning = true
+
+# Custom macros (if you wrap the standard rules)
+# library_macro = "my_kt_library"
+# test_macro = "my_kt_test"
+
+[python]
+# Enable Python extension
+enabled = true
+
+# Test framework to use
+test_framework = "pytest"
+
+# Custom macros (if you wrap the standard rules)
+# library_macro = "my_py_library"
+# test_macro = "my_py_test"
+# binary_macro = "my_py_binary"
+
+[groovy]
+# Enable Groovy extension
+# enabled = true
+
+# Spock test framework support
+# spock_detection = true
+
+[cc]
+# Enable C/C++ extension
+# enabled = true

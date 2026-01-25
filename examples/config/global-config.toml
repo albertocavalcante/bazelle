@@ -1,0 +1,31 @@
+# Global user configuration for Bazelle
+# Place this file at ~/.config/bazelle/config.toml
+#
+# This configuration applies to all projects unless overridden
+# by project-level configuration.
+
+[languages]
+# Languages to enable by default for all projects
+enabled = ["go", "proto", "kotlin"]
+
+# Languages to never enable (takes precedence over enabled)
+# disabled = ["java", "scala"]
+
+[go]
+# Modern naming convention (recommended)
+naming_convention = "import"
+naming_convention_external = "import"
+
+[kotlin]
+# Parser backend: "heuristic" (default), "treesitter", or "hybrid"
+parser_backend = "heuristic"
+
+# Enable fully-qualified name scanning in code body
+# fqn_scanning = true
+
+[python]
+# Test framework: "pytest" (default) or "unittest"
+test_framework = "pytest"
+
+# Custom stdlib modules file (optional)
+# stdlib_modules_file = "~/.config/bazelle/python_stdlib.txt"
