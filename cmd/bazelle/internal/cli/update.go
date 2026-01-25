@@ -2,18 +2,22 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
+	"github.com/albertocavalcante/bazelle/cmd/bazelle/internal/incremental"
 	"github.com/bazelbuild/bazel-gazelle/runner"
+	"github.com/spf13/cobra"
 )
 
 var updateFlags struct {
-	check     bool
-	languages []string
-	verbose   bool
+	check       bool
+	languages   []string
+	verbose     bool
+	incremental bool
+	force       bool
 }
 
 var updateCmd = &cobra.Command{
@@ -24,10 +28,16 @@ var updateCmd = &cobra.Command{
 The --check flag can be used in CI to verify BUILD files are up to date
 without making changes.
 
+The --incremental flag enables incremental mode, which only updates
+directories that have changed since the last update. This can be
+significantly faster for large codebases.
+
+The --force flag forces a full update, ignoring any cached state.
+
 Additional gazelle flags (like -bzlmod, -go_prefix) are passed through.`,
-	RunE:                       runUpdate,
-	FParseErrWhitelist:         cobra.FParseErrWhitelist{UnknownFlags: true},
-	DisableFlagsInUseLine:      true,
+	RunE:                  runUpdate,
+	FParseErrWhitelist:    cobra.FParseErrWhitelist{UnknownFlags: true},
+	DisableFlagsInUseLine: true,
 }
 
 func init() {
@@ -37,6 +47,10 @@ func init() {
 		"Only run specific language extensions (comma-separated)")
 	updateCmd.Flags().BoolVarP(&updateFlags.verbose, "verbose", "v", false,
 		"Show detailed output")
+	updateCmd.Flags().BoolVar(&updateFlags.incremental, "incremental", false,
+		"Only update directories with changed source files")
+	updateCmd.Flags().BoolVar(&updateFlags.force, "force", false,
+		"Force full update, ignoring cached state")
 
 	rootCmd.AddCommand(updateCmd)
 }
@@ -65,8 +79,18 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return runUpdateCheck(wd, gazelleArgs)
 	}
 
+	// Handle incremental mode
+	if updateFlags.incremental && !updateFlags.force {
+		return runIncrementalUpdate(wd, args)
+	}
+
 	// Normal update: run gazelle
-	return runner.Run(languages, wd, gazelleArgs...)
+	if err := runner.Run(languages, wd, gazelleArgs...); err != nil {
+		return err
+	}
+
+	// Update state after successful run
+	return updateStateAfterRun(wd)
 }
 
 func runUpdateCheck(wd string, args []string) error {
@@ -126,5 +150,90 @@ func runUpdateCheck(wd string, args []string) error {
 	}
 
 	fmt.Println("BUILD files are up to date")
+	return nil
+}
+
+func runIncrementalUpdate(wd string, passthroughArgs []string) error {
+	ctx := context.Background()
+	tracker := incremental.NewTracker(wd, updateFlags.languages)
+
+	// Check if state exists
+	if !tracker.HasState() {
+		if updateFlags.verbose {
+			fmt.Println("No state found, running full update...")
+		}
+		return runFullUpdate(wd, passthroughArgs)
+	}
+
+	// Get status
+	cs, err := tracker.Status(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to detect staleness: %w", err)
+	}
+
+	// Check if there are stale directories
+	if cs.IsEmpty() {
+		fmt.Println("BUILD files are up to date")
+		return nil
+	}
+
+	staleDirs := cs.AffectedDirs()
+
+	// Print stale directories
+	if updateFlags.verbose {
+		fmt.Printf("Found %d stale directories:\n", len(staleDirs))
+		for _, dir := range staleDirs {
+			fmt.Printf("  %s\n", dir)
+		}
+		fmt.Println()
+	}
+
+	// Build gazelle arguments with stale directories as targets
+	gazelleArgs := []string{"update"}
+	gazelleArgs = append(gazelleArgs, GazelleDefaults...)
+	gazelleArgs = append(gazelleArgs, passthroughArgs...)
+
+	// Add stale directories as targets
+	targets := cs.AsTargets()
+	gazelleArgs = append(gazelleArgs, targets...)
+
+	// Run gazelle on stale directories
+	fmt.Printf("Updating %d directories...\n", len(staleDirs))
+	if err := runner.Run(languages, wd, gazelleArgs...); err != nil {
+		return fmt.Errorf("gazelle failed: %w", err)
+	}
+
+	// Update state after successful run
+	return updateStateAfterRun(wd)
+}
+
+func runFullUpdate(wd string, passthroughArgs []string) error {
+	// Build gazelle arguments
+	gazelleArgs := []string{"update"}
+	gazelleArgs = append(gazelleArgs, GazelleDefaults...)
+	gazelleArgs = append(gazelleArgs, passthroughArgs...)
+
+	// Run gazelle
+	if err := runner.Run(languages, wd, gazelleArgs...); err != nil {
+		return fmt.Errorf("gazelle failed: %w", err)
+	}
+
+	// Update state after successful run
+	return updateStateAfterRun(wd)
+}
+
+func updateStateAfterRun(wd string) error {
+	ctx := context.Background()
+	tracker := incremental.NewTracker(wd, updateFlags.languages)
+
+	// Refresh state from current disk state
+	if err := tracker.Refresh(ctx); err != nil {
+		return fmt.Errorf("failed to update state: %w", err)
+	}
+
+	if updateFlags.verbose {
+		fmt.Printf("State saved (%d files tracked)\n", tracker.TrackedFileCount())
+	}
+
 	return nil
 }

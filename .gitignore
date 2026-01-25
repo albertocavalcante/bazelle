@@ -2,6 +2,9 @@
 bazel-*
 MODULE.bazel.lock
 
+# Bazelle state
+.bazelle/
+
 # Temp
 .tmp/
 

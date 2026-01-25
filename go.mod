@@ -8,6 +8,7 @@ require (
 	github.com/bazelbuild/bazel-gazelle v0.47.0
 	github.com/bazelbuild/bazel-skylib v0.0.0-20251220030559-ea054fcaf08c
 	github.com/calsign/gazelle_rust v0.0.0-20260116161429-c029702902b7
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/kisielk/errcheck v1.9.0
 	github.com/malivvan/tree-sitter v0.0.1
 	github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82

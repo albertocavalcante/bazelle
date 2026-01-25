@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "incremental",
+    srcs = [
+        "changeset.go",
+        "entry.go",
+        "hash.go",
+        "incremental.go",
+        "index.go",
+        "scanner.go",
+        "store.go",
+    ],
+    importpath = "github.com/albertocavalcante/bazelle/cmd/bazelle/internal/incremental",
+    visibility = ["//cmd/bazelle:__subpackages__"],
+    deps = [
+        "@com_github_cespare_xxhash_v2//:xxhash",
+    ],
+)
+
+go_test(
+    name = "incremental_test",
+    srcs = ["incremental_test.go"],
+    embed = [":incremental"],
+)
