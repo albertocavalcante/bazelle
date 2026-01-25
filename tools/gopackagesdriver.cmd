@@ -15,7 +15,8 @@ GOTO :CMDSCRIPT
 # See: https://github.com/bazelbuild/rules_go/wiki/Editor-setup
 
 set -euo pipefail
-exec bazel run -- @rules_go//go/tools/gopackagesdriver "$@"
+root="$(cd "$(dirname "$0")/.."; pwd)"
+exec "$root/bazel.cmd" run -- @rules_go//go/tools/gopackagesdriver "$@"
 
 :CMDSCRIPT
 REM Go packages driver for Bazel integration with IDEs.
@@ -29,4 +30,4 @@ REM   # Or add to your shell profile / IDE settings
 REM
 REM See: https://github.com/bazelbuild/rules_go/wiki/Editor-setup
 
-bazel run -- @rules_go//go/tools/gopackagesdriver %*
+"%~dp0..\bazel.cmd" run -- @rules_go//go/tools/gopackagesdriver %*
