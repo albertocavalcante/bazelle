@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/albertocavalcante/bazelle/pkg/jvm"
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
@@ -30,7 +31,7 @@ func TestFindGroovyFiles(t *testing.T) {
 		}
 	}
 
-	result := findGroovyFiles(tmpDir, "src/main/groovy")
+	result := jvm.FindSourceFiles(tmpDir, "src/main/groovy", jvm.Groovy.FileExtensions())
 	if len(result) != 2 {
 		t.Fatalf("Expected 2 Groovy files, got %d: %v", len(result), result)
 	}
@@ -48,7 +49,7 @@ func TestFindGroovyFiles(t *testing.T) {
 func TestFindGroovyFiles_NoDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	result := findGroovyFiles(tmpDir, "src/main/groovy")
+	result := jvm.FindSourceFiles(tmpDir, "src/main/groovy", jvm.Groovy.FileExtensions())
 	if result != nil {
 		t.Errorf("Expected nil for non-existent directory, got %v", result)
 	}

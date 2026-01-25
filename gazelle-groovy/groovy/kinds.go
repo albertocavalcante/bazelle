@@ -1,32 +1,13 @@
 package groovy
 
-import "github.com/bazelbuild/bazel-gazelle/rule"
+import (
+	"github.com/albertocavalcante/bazelle/pkg/jvm"
+	"github.com/bazelbuild/bazel-gazelle/rule"
+)
 
 // Kinds implements language.Language.
 func (*groovyLang) Kinds() map[string]rule.KindInfo {
-	return map[string]rule.KindInfo{
-		"groovy_library": {
-			MatchAny:        false,
-			NonEmptyAttrs:   map[string]bool{"srcs": true},
-			SubstituteAttrs: map[string]bool{},
-			MergeableAttrs:  map[string]bool{"srcs": true, "deps": true},
-			ResolveAttrs:    map[string]bool{"deps": true},
-		},
-		"groovy_test": {
-			MatchAny:        false,
-			NonEmptyAttrs:   map[string]bool{"srcs": true},
-			SubstituteAttrs: map[string]bool{},
-			MergeableAttrs:  map[string]bool{"srcs": true, "deps": true},
-			ResolveAttrs:    map[string]bool{"deps": true},
-		},
-		"spock_test": {
-			MatchAny:        false,
-			NonEmptyAttrs:   map[string]bool{"specs": true},
-			SubstituteAttrs: map[string]bool{},
-			MergeableAttrs:  map[string]bool{"specs": true, "deps": true},
-			ResolveAttrs:    map[string]bool{"deps": true},
-		},
-	}
+	return jvm.StandardGroovyKinds()
 }
 
 // Loads implements language.Language.

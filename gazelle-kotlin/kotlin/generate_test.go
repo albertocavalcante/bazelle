@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/albertocavalcante/bazelle/pkg/jvm"
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
@@ -31,8 +32,8 @@ func TestFindKotlinFiles(t *testing.T) {
 		}
 	}
 
-	// Test finding files
-	result := findKotlinFiles(tmpDir, "src/main/kotlin")
+	// Test finding files using jvm package
+	result := jvm.FindSourceFiles(tmpDir, "src/main/kotlin", jvm.Kotlin.FileExtensions())
 
 	if len(result) != 2 {
 		t.Errorf("Expected 2 files, got %d: %v", len(result), result)
@@ -53,7 +54,7 @@ func TestFindKotlinFiles_NoDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Try to find files in non-existent directory
-	result := findKotlinFiles(tmpDir, "src/main/kotlin")
+	result := jvm.FindSourceFiles(tmpDir, "src/main/kotlin", jvm.Kotlin.FileExtensions())
 
 	if result != nil {
 		t.Errorf("Expected nil for non-existent directory, got %v", result)
@@ -69,7 +70,7 @@ func TestFindKotlinFiles_EmptyDirectory(t *testing.T) {
 		t.Fatalf("Failed to create directory: %v", err)
 	}
 
-	result := findKotlinFiles(tmpDir, "src/main/kotlin")
+	result := jvm.FindSourceFiles(tmpDir, "src/main/kotlin", jvm.Kotlin.FileExtensions())
 
 	if len(result) != 0 {
 		t.Errorf("Expected 0 files in empty directory, got %d: %v", len(result), result)
@@ -102,7 +103,7 @@ func TestFindKotlinFiles_OnlyKotlinFiles(t *testing.T) {
 		}
 	}
 
-	result := findKotlinFiles(tmpDir, "src/main/kotlin")
+	result := jvm.FindSourceFiles(tmpDir, "src/main/kotlin", jvm.Kotlin.FileExtensions())
 
 	// Should only find .kt files
 	expectedCount := 0

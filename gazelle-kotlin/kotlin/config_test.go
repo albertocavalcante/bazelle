@@ -331,61 +331,6 @@ func TestConfigure_OverrideParent(t *testing.T) {
 	}
 }
 
-func TestIsKotlinSourceDir(t *testing.T) {
-	tests := []struct {
-		dir      string
-		expected bool
-	}{
-		{"src/main/kotlin", true},
-		{"src/test/kotlin", true},
-		{"/path/to/src/main/kotlin", true},
-		{"/path/to/src/test/kotlin", true},
-		{"src/main/kotlin/com/example", true},
-		{"src/test/kotlin/com/example", true},
-		{"src/main/java", false},
-		{"src/test/java", false},
-		{"kotlin", false},
-		{"main/kotlin", false},
-		{"", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.dir, func(t *testing.T) {
-			result := IsKotlinSourceDir(tt.dir)
-			if result != tt.expected {
-				t.Errorf("IsKotlinSourceDir(%q): expected %v, got %v", tt.dir, tt.expected, result)
-			}
-		})
-	}
-}
-
-func TestIsTestDir(t *testing.T) {
-	tests := []struct {
-		dir      string
-		expected bool
-	}{
-		{"src/test", true},
-		{"src/test/kotlin", true},
-		{"src/test/java", true},
-		{"/path/to/src/test", true},
-		{"/path/to/src/test/kotlin/com/example", true},
-		{"src/main", false},
-		{"src/main/kotlin", false},
-		{"test", false},
-		{"testing", false},
-		{"", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.dir, func(t *testing.T) {
-			result := IsTestDir(tt.dir)
-			if result != tt.expected {
-				t.Errorf("IsTestDir(%q): expected %v, got %v", tt.dir, tt.expected, result)
-			}
-		})
-	}
-}
-
 func TestConfigure_ParserBackend(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -6,7 +6,6 @@ go_library(
     name = "groovy",
     srcs = [
         "config.go",
-        "configure.go",
         "fix.go",
         "generate.go",
         "kinds.go",
@@ -16,6 +15,7 @@ go_library(
     importpath = "github.com/albertocavalcante/bazelle/gazelle-groovy/groovy",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/jvm",
         "@bazel_gazelle//config",
         "@bazel_gazelle//label",
         "@bazel_gazelle//language",
@@ -30,6 +30,7 @@ go_test(
     srcs = ["generate_test.go"],
     embed = [":groovy"],
     deps = [
+        "//pkg/jvm",
         "@bazel_gazelle//config",
         "@bazel_gazelle//language",
         "@bazel_gazelle//rule",

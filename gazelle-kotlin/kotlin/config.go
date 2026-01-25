@@ -3,29 +3,17 @@ package kotlin
 import (
 	"flag"
 	"log"
-	"path/filepath"
 	"strings"
 
+	"github.com/albertocavalcante/bazelle/pkg/jvm"
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
 // KotlinConfig holds configuration for the Kotlin extension.
 type KotlinConfig struct {
-	// Enabled indicates whether the Kotlin extension is enabled.
-	Enabled bool
-
-	// LibraryMacro is the rule kind to use for libraries (default: kt_jvm_library).
-	LibraryMacro string
-
-	// TestMacro is the rule kind to use for tests (default: kt_jvm_test).
-	TestMacro string
-
-	// Visibility is the default visibility for generated targets.
-	Visibility string
-
-	// LoadPath is the path to load custom macros from.
-	LoadPath string
+	// Embed BaseConfig for common JVM language fields.
+	jvm.BaseConfig
 
 	// ParserBackend specifies which parsing strategy to use.
 	// Options: "heuristic" (default), "treesitter", "hybrid"
@@ -35,14 +23,16 @@ type KotlinConfig struct {
 	EnableFQNScanning bool
 }
 
+// Clone implements jvm.Config.
+func (c *KotlinConfig) Clone() jvm.Config {
+	clone := *c
+	return &clone
+}
+
 // NewKotlinConfig creates a new KotlinConfig with default values.
 func NewKotlinConfig() *KotlinConfig {
 	return &KotlinConfig{
-		Enabled:           false,
-		LibraryMacro:      "kt_jvm_library",
-		TestMacro:         "kt_jvm_test",
-		Visibility:        "//visibility:public",
-		LoadPath:          "",
+		BaseConfig:        jvm.NewBaseConfig(jvm.Kotlin),
 		ParserBackend:     BackendHeuristic,
 		EnableFQNScanning: true,
 	}
@@ -70,15 +60,13 @@ func (*kotlinLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
 
 // KnownDirectives implements config.Configurer.
 func (*kotlinLang) KnownDirectives() []string {
-	return []string{
-		"kotlin_enabled",
-		"kotlin_library_macro",
-		"kotlin_test_macro",
-		"kotlin_visibility",
-		"kotlin_load",
+	directives := jvm.CommonDirectiveNames(jvm.Kotlin)
+	// Add Kotlin-specific directives
+	directives = append(directives,
 		"kotlin_parser_backend",
 		"kotlin_fqn_scanning",
-	}
+	)
+	return directives
 }
 
 // Configure implements config.Configurer.
@@ -90,55 +78,32 @@ func (*kotlinLang) Configure(c *config.Config, rel string, f *rule.File) {
 	}
 
 	// Create a new config for this directory (inheriting from parent)
-	newKc := *kc
-	c.Exts[kotlinName] = &newKc
+	newKc := kc.Clone().(*KotlinConfig)
+	c.Exts[kotlinName] = newKc
 
 	if f == nil {
 		return
 	}
 
-	for _, d := range f.Directives {
-		switch d.Key {
-		case "kotlin_enabled":
-			newKc.Enabled = strings.ToLower(d.Value) == "true"
-		case "kotlin_library_macro":
-			newKc.LibraryMacro = d.Value
-		case "kotlin_test_macro":
-			newKc.TestMacro = d.Value
-		case "kotlin_visibility":
-			newKc.Visibility = d.Value
-		case "kotlin_load":
-			// Warn about potential path traversal
-			if strings.Contains(d.Value, "..") {
-				log.Printf("WARNING: kotlin_load path contains '..' which may be unsafe: %s", d.Value)
-			}
-			newKc.LoadPath = d.Value
-		case "kotlin_parser_backend":
-			switch strings.ToLower(d.Value) {
-			case "heuristic":
-				newKc.ParserBackend = BackendHeuristic
-			case "treesitter":
-				newKc.ParserBackend = BackendTreeSitter
-			case "hybrid":
-				newKc.ParserBackend = BackendHybrid
-			default:
-				log.Printf("WARNING: unknown kotlin_parser_backend %q, using heuristic", d.Value)
-				newKc.ParserBackend = BackendHeuristic
-			}
-		case "kotlin_fqn_scanning":
-			newKc.EnableFQNScanning = strings.ToLower(d.Value) == "true"
+	// Build handlers: common JVM directives + Kotlin-specific
+	handlers := jvm.CommonDirectives(jvm.Kotlin)
+	handlers["kotlin_parser_backend"] = func(cfg jvm.Config, value string) {
+		kc := cfg.(*KotlinConfig)
+		switch strings.ToLower(value) {
+		case "heuristic":
+			kc.ParserBackend = BackendHeuristic
+		case "treesitter":
+			kc.ParserBackend = BackendTreeSitter
+		case "hybrid":
+			kc.ParserBackend = BackendHybrid
+		default:
+			log.Printf("WARNING: unknown kotlin_parser_backend %q, using heuristic", value)
+			kc.ParserBackend = BackendHeuristic
 		}
 	}
-}
+	handlers["kotlin_fqn_scanning"] = func(cfg jvm.Config, value string) {
+		cfg.(*KotlinConfig).EnableFQNScanning = strings.ToLower(value) == "true"
+	}
 
-// IsKotlinSourceDir checks if a directory contains Kotlin source files.
-func IsKotlinSourceDir(dir string) bool {
-	// Standard Maven/Gradle layout
-	return strings.Contains(dir, filepath.Join("src", "main", "kotlin")) ||
-		strings.Contains(dir, filepath.Join("src", "test", "kotlin"))
-}
-
-// IsTestDir checks if a directory is a test directory.
-func IsTestDir(dir string) bool {
-	return strings.Contains(dir, filepath.Join("src", "test"))
+	jvm.ProcessDirectives(f, newKc, handlers)
 }

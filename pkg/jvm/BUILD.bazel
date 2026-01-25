@@ -1,0 +1,42 @@
+# JVM Language Abstractions
+#
+# Common abstractions for JVM language gazelle extensions (Kotlin, Groovy, Java, Scala).
+# Provides unified patterns for configuration, file discovery, rule generation, etc.
+
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "jvm",
+    srcs = [
+        "config.go",
+        "directives.go",
+        "files.go",
+        "fix.go",
+        "kinds.go",
+        "names.go",
+        "resolve.go",
+        "rules.go",
+        "types.go",
+    ],
+    importpath = "github.com/albertocavalcante/bazelle/pkg/jvm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@bazel_gazelle//config",
+        "@bazel_gazelle//label",
+        "@bazel_gazelle//repo",
+        "@bazel_gazelle//resolve",
+        "@bazel_gazelle//rule",
+    ],
+)
+
+go_test(
+    name = "jvm_test",
+    srcs = [
+        "config_test.go",
+        "files_test.go",
+        "kinds_test.go",
+        "names_test.go",
+        "types_test.go",
+    ],
+    embed = [":jvm"],
+)
