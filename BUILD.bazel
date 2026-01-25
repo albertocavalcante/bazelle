@@ -62,6 +62,17 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:cc_generate true
 
 # ==============================================================================
+# Bazelle Binary Alias
+# ==============================================================================
+
+# Direct access to bazelle CLI.
+# Usage: bazel run //:bazelle -- [command] [flags]
+alias(
+    name = "bazelle",
+    actual = "//cmd/bazelle",
+)
+
+# ==============================================================================
 # Gazelle Targets
 # ==============================================================================
 
