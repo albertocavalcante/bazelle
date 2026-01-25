@@ -386,6 +386,80 @@ func TestIsTestDir(t *testing.T) {
 	}
 }
 
+func TestConfigure_ParserBackend(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    string
+		expected ParserBackendType
+	}{
+		{"heuristic", "heuristic", BackendHeuristic},
+		{"treesitter", "treesitter", BackendTreeSitter},
+		{"hybrid", "hybrid", BackendHybrid},
+		{"TREESITTER uppercase", "TREESITTER", BackendTreeSitter},
+		{"Hybrid mixed case", "Hybrid", BackendHybrid},
+		{"invalid defaults to heuristic", "invalid", BackendHeuristic},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &config.Config{
+				Exts: make(map[string]interface{}),
+			}
+			c.Exts[kotlinName] = NewKotlinConfig()
+
+			lang := &kotlinLang{}
+			f := &rule.File{
+				Directives: []rule.Directive{
+					{Key: "kotlin_parser_backend", Value: tt.value},
+				},
+			}
+
+			lang.Configure(c, "", f)
+
+			result := GetKotlinConfig(c)
+			if result.ParserBackend != tt.expected {
+				t.Errorf("kotlin_parser_backend=%s: expected %v, got %v", tt.value, tt.expected, result.ParserBackend)
+			}
+		})
+	}
+}
+
+func TestConfigure_FQNScanning(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    string
+		expected bool
+	}{
+		{"enabled true", "true", true},
+		{"enabled TRUE", "TRUE", true},
+		{"disabled false", "false", false},
+		{"disabled other", "other", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &config.Config{
+				Exts: make(map[string]interface{}),
+			}
+			c.Exts[kotlinName] = NewKotlinConfig()
+
+			lang := &kotlinLang{}
+			f := &rule.File{
+				Directives: []rule.Directive{
+					{Key: "kotlin_fqn_scanning", Value: tt.value},
+				},
+			}
+
+			lang.Configure(c, "", f)
+
+			result := GetKotlinConfig(c)
+			if result.EnableFQNScanning != tt.expected {
+				t.Errorf("kotlin_fqn_scanning=%s: expected %v, got %v", tt.value, tt.expected, result.EnableFQNScanning)
+			}
+		})
+	}
+}
+
 func TestKnownDirectives(t *testing.T) {
 	lang := &kotlinLang{}
 	directives := lang.KnownDirectives()
@@ -396,10 +470,12 @@ func TestKnownDirectives(t *testing.T) {
 		"kotlin_test_macro",
 		"kotlin_visibility",
 		"kotlin_load",
+		"kotlin_parser_backend",
+		"kotlin_fqn_scanning",
 	}
 
 	if len(directives) != len(expected) {
-		t.Fatalf("Expected %d directives, got %d", len(expected), len(directives))
+		t.Fatalf("Expected %d directives, got %d: %v", len(expected), len(directives), directives)
 	}
 
 	directiveSet := make(map[string]bool)

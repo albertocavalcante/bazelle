@@ -1,4 +1,7 @@
 # Gazelle-Kotlin Extension
+#
+# A Gazelle extension for generating Kotlin BUILD files.
+# Supports multiple parsing backends: heuristic (regex) and tree-sitter (AST).
 
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
@@ -13,11 +16,13 @@ go_library(
         "kinds.go",
         "lang.go",
         "parser.go",
+        "parser_backend.go",
         "resolve.go",
     ],
     importpath = "github.com/albertocavalcante/bazelle/gazelle-kotlin/kotlin",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/treesitter",
         "@bazel_gazelle//config",
         "@bazel_gazelle//label",
         "@bazel_gazelle//language",
@@ -33,10 +38,12 @@ go_test(
         "config_test.go",
         "generate_test.go",
         "kinds_test.go",
+        "parser_backend_test.go",
         "parser_test.go",
     ],
     embed = [":kotlin"],
     deps = [
+        "//pkg/treesitter",
         "@bazel_gazelle//config",
         "@bazel_gazelle//language",
         "@bazel_gazelle//rule",

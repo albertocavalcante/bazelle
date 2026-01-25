@@ -26,16 +26,25 @@ type KotlinConfig struct {
 
 	// LoadPath is the path to load custom macros from.
 	LoadPath string
+
+	// ParserBackend specifies which parsing strategy to use.
+	// Options: "heuristic" (default), "treesitter", "hybrid"
+	ParserBackend ParserBackendType
+
+	// EnableFQNScanning enables detection of fully-qualified names in code body.
+	EnableFQNScanning bool
 }
 
 // NewKotlinConfig creates a new KotlinConfig with default values.
 func NewKotlinConfig() *KotlinConfig {
 	return &KotlinConfig{
-		Enabled:      false,
-		LibraryMacro: "kt_jvm_library",
-		TestMacro:    "kt_jvm_test",
-		Visibility:   "//visibility:public",
-		LoadPath:     "",
+		Enabled:           false,
+		LibraryMacro:      "kt_jvm_library",
+		TestMacro:         "kt_jvm_test",
+		Visibility:        "//visibility:public",
+		LoadPath:          "",
+		ParserBackend:     BackendHeuristic,
+		EnableFQNScanning: true,
 	}
 }
 
@@ -67,6 +76,8 @@ func (*kotlinLang) KnownDirectives() []string {
 		"kotlin_test_macro",
 		"kotlin_visibility",
 		"kotlin_load",
+		"kotlin_parser_backend",
+		"kotlin_fqn_scanning",
 	}
 }
 
@@ -102,6 +113,20 @@ func (*kotlinLang) Configure(c *config.Config, rel string, f *rule.File) {
 				log.Printf("WARNING: kotlin_load path contains '..' which may be unsafe: %s", d.Value)
 			}
 			newKc.LoadPath = d.Value
+		case "kotlin_parser_backend":
+			switch strings.ToLower(d.Value) {
+			case "heuristic":
+				newKc.ParserBackend = BackendHeuristic
+			case "treesitter":
+				newKc.ParserBackend = BackendTreeSitter
+			case "hybrid":
+				newKc.ParserBackend = BackendHybrid
+			default:
+				log.Printf("WARNING: unknown kotlin_parser_backend %q, using heuristic", d.Value)
+				newKc.ParserBackend = BackendHeuristic
+			}
+		case "kotlin_fqn_scanning":
+			newKc.EnableFQNScanning = strings.ToLower(d.Value) == "true"
 		}
 	}
 }
