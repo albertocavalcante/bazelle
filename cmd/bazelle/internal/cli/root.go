@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/albertocavalcante/bazelle/internal/log"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/spf13/cobra"
 )
@@ -17,6 +18,12 @@ var (
 
 // languages holds the list of language extensions to use with gazelle
 var languages []language.Language
+
+// globalFlags holds persistent flags that apply to all commands
+var globalFlags struct {
+	verbosity int
+	logFormat string
+}
 
 // SetLanguages sets the language extensions to use with gazelle
 func SetLanguages(langs []language.Language) {
@@ -48,6 +55,25 @@ var versionCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(versionCmd)
+
+	// Global flags (persistent across all commands)
+	rootCmd.PersistentFlags().IntVarP(&globalFlags.verbosity, "verbosity", "v", 1,
+		"Verbosity level (0=error, 1=warn, 2=info, 3=debug, 4=trace)")
+	rootCmd.PersistentFlags().StringVar(&globalFlags.logFormat, "log-format", "text",
+		"Log format (text, json)")
+
+	// Hook to apply flags before command runs
+	cobra.OnInitialize(initLogging)
+}
+
+// initLogging applies CLI flags to the logger.
+// This runs after flags are parsed but before command execution.
+func initLogging() {
+	// CLI flags override config (already set by main.go)
+	log.SetVerbosity(globalFlags.verbosity)
+	if globalFlags.logFormat != "" {
+		log.Init(globalFlags.verbosity, globalFlags.logFormat)
+	}
 }
 
 // GazelleDefaults are opinionated defaults prepended to gazelle args.

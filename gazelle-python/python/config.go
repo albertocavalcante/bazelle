@@ -2,9 +2,9 @@ package python
 
 import (
 	"flag"
-	"log"
 	"strings"
 
+	"github.com/albertocavalcante/bazelle/internal/log"
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
@@ -124,7 +124,8 @@ func (*pythonLang) Configure(c *config.Config, rel string, f *rule.File) {
 			case "pytest", "unittest":
 				newPc.TestFramework = strings.ToLower(d.Value)
 			default:
-				log.Printf("WARNING: unknown python_test_framework %q, using pytest", d.Value)
+				log.Warn("unknown python_test_framework, using pytest",
+					"value", d.Value, "language", "python")
 				newPc.TestFramework = "pytest"
 			}
 		case "python_stdlib_modules_file":

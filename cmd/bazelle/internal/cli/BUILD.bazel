@@ -17,6 +17,7 @@ go_library(
         "//cmd/bazelle/internal/detect",
         "//cmd/bazelle/internal/incremental",
         "//cmd/bazelle/internal/watch",
+        "//internal/log",
         "@bazel_gazelle//language",
         "@bazel_gazelle//runner",
         "@com_github_spf13_cobra//:cobra",

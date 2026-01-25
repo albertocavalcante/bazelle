@@ -1,10 +1,10 @@
 package kotlin
 
 import (
-	"log"
 	"path/filepath"
 	"sort"
 
+	"github.com/albertocavalcante/bazelle/internal/log"
 	"github.com/albertocavalcante/bazelle/pkg/jvm"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
@@ -73,7 +73,8 @@ func (k *kotlinLang) generateLibraryRule(args language.GenerateArgs, kc *KotlinC
 
 	results, err := k.parser.ParseFiles(fullPaths)
 	if err != nil {
-		log.Printf("WARNING: Failed to parse Kotlin files for %s: %v", name, err)
+		log.Warn("failed to parse kotlin files",
+			"target", name, "error", err)
 	}
 	if len(results) > 0 {
 		r.SetPrivateAttr("packages", GetPackages(results))
@@ -102,7 +103,8 @@ func (k *kotlinLang) generateTestRule(args language.GenerateArgs, kc *KotlinConf
 
 	results, err := k.parser.ParseFiles(fullPaths)
 	if err != nil {
-		log.Printf("WARNING: Failed to parse Kotlin test files for %s: %v", name, err)
+		log.Warn("failed to parse kotlin test files",
+			"target", name, "error", err)
 	}
 	if len(results) > 0 {
 		packages := GetPackages(results)

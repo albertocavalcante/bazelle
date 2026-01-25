@@ -3,9 +3,11 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/albertocavalcante/bazelle/internal/log"
 )
 
 // ConfigFileName is the name of the project-level config file.
@@ -26,19 +28,23 @@ const GlobalConfigDir = "bazelle"
 // CLI flags are applied separately after Load() returns.
 func Load() *Config {
 	cfg := NewConfig()
+	log.V(3).Debug("loading config", "defaults", cfg.Languages.Enabled)
 
 	// Layer 2: Global user config
 	if globalCfg := loadGlobalConfig(); globalCfg != nil {
+		log.V(2).Info("loaded global config", "path", GetGlobalConfigPath())
 		cfg.Merge(globalCfg)
 	}
 
 	// Layer 3: Project config
 	if projectCfg := loadProjectConfig(); projectCfg != nil {
+		log.V(2).Info("loaded project config")
 		cfg.Merge(projectCfg)
 	}
 
 	// Layer 4: Environment variables
 	applyEnvironmentVariables(cfg)
+	log.V(3).Debug("final config", "languages", cfg.GetEnabledLanguages())
 
 	return cfg
 }
@@ -143,6 +149,16 @@ func loadConfigFile(path string) *Config {
 
 // applyEnvironmentVariables applies BAZELLE_* environment variables to the config.
 func applyEnvironmentVariables(cfg *Config) {
+	// Logging configuration
+	if v := os.Getenv("BAZELLE_VERBOSITY"); v != "" {
+		if i, err := strconv.Atoi(v); err == nil {
+			cfg.Log.Verbosity = i
+		}
+	}
+	if v := os.Getenv("BAZELLE_LOG_FORMAT"); v != "" {
+		cfg.Log.Format = v
+	}
+
 	// BAZELLE_LANGUAGES_ENABLED: comma-separated list of languages to enable
 	if langs := os.Getenv("BAZELLE_LANGUAGES_ENABLED"); langs != "" {
 		cfg.Languages.Enabled = splitAndTrim(langs)

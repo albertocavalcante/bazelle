@@ -21,6 +21,7 @@ go_library(
     importpath = "github.com/albertocavalcante/bazelle/pkg/jvm",
     visibility = ["//visibility:public"],
     deps = [
+        "//internal/log",
         "@bazel_gazelle//config",
         "@bazel_gazelle//label",
         "@bazel_gazelle//repo",

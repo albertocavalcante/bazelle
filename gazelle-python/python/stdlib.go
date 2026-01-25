@@ -60,10 +60,15 @@ func LoadCustomStdlibModules(path string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Initialize default modules first if not already done
 	stdlibModulesOnce.Do(initStdlibModules)
+
+	// Ensure stdlibModules is initialized before writing
+	if stdlibModules == nil {
+		stdlibModules = make(map[string]bool)
+	}
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {

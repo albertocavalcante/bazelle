@@ -9,8 +9,21 @@ package config
 
 import "slices"
 
+// LogConfig holds logging configuration.
+type LogConfig struct {
+	// Verbosity is the log verbosity level (0-4).
+	// 0=error, 1=warn, 2=info, 3=debug, 4=trace
+	Verbosity int `toml:"verbosity"`
+
+	// Format is the log output format ("text" or "json").
+	Format string `toml:"format"`
+}
+
 // Config is the main configuration struct for Bazelle.
 type Config struct {
+	// Log configures logging behavior.
+	Log LogConfig `toml:"log"`
+
 	// Languages configures which language extensions to enable.
 	Languages LanguagesConfig `toml:"languages"`
 
@@ -176,6 +189,10 @@ func NewConfig() *Config {
 	trueVal := true
 	falseVal := false
 	return &Config{
+		Log: LogConfig{
+			Verbosity: 1,      // warnings by default
+			Format:    "text", // human-readable by default
+		},
 		Languages: LanguagesConfig{
 			// Default: Go and Proto are always safe to enable
 			Enabled:  []string{"go", "proto"},
@@ -283,6 +300,14 @@ func (c *Config) GetEnabledLanguages() []string {
 func (c *Config) Merge(other *Config) {
 	if other == nil {
 		return
+	}
+
+	// Merge log config
+	if other.Log.Verbosity != 0 {
+		c.Log.Verbosity = other.Log.Verbosity
+	}
+	if other.Log.Format != "" {
+		c.Log.Format = other.Log.Format
 	}
 
 	// Merge languages config

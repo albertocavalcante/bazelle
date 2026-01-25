@@ -1,9 +1,9 @@
 package jvm
 
 import (
-	"log"
 	"strings"
 
+	"github.com/albertocavalcante/bazelle/internal/log"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
@@ -62,7 +62,8 @@ func ProcessDirectives(f *rule.File, cfg Config, handlers map[string]DirectiveHa
 // WarnIfPathTraversal logs a warning if the path contains ".." which may be unsafe.
 func WarnIfPathTraversal(directive, value string) {
 	if strings.Contains(value, "..") {
-		log.Printf("WARNING: %s path contains '..' which may be unsafe: %s", directive, value)
+		log.Warn("directive path contains '..' which may be unsafe",
+			"directive", directive, "path", value)
 	}
 }
 

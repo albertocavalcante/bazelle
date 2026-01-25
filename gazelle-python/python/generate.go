@@ -1,11 +1,11 @@
 package python
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/albertocavalcante/bazelle/internal/log"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
@@ -123,7 +123,8 @@ func (p *pythonLang) generateBinaryRule(args language.GenerateArgs, pc *PythonCo
 	fullPath := filepath.Join(args.Dir, mainFile)
 	result, err := p.parser.ParseFile(fullPath)
 	if err != nil {
-		log.Printf("WARNING: Failed to parse %s: %v", mainFile, err)
+		log.Warn("failed to parse python file",
+			"file", mainFile, "error", err)
 		return r, nil
 	}
 
@@ -142,7 +143,8 @@ func (p *pythonLang) collectImports(dir string, files []string) []string {
 		fullPath := filepath.Join(dir, file)
 		result, err := p.parser.ParseFile(fullPath)
 		if err != nil {
-			log.Printf("WARNING: Failed to parse %s: %v", file, err)
+			log.Warn("failed to parse python file",
+				"file", file, "error", err)
 			continue
 		}
 

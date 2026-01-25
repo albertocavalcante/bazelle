@@ -1,0 +1,31 @@
+# Registry Package
+#
+# Provides a language factory registry for dynamic language loading.
+# Allows Bazelle to load only the language extensions that are enabled.
+
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "registry",
+    srcs = ["registry.go"],
+    importpath = "github.com/albertocavalcante/bazelle/pkg/registry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//gazelle-groovy/groovy",
+        "//gazelle-kotlin/kotlin",
+        "//gazelle-python/python",
+        "//internal/log",
+        "//pkg/config",
+        "@bazel_gazelle//language",
+        "@bazel_gazelle//language/go",
+        "@bazel_gazelle//language/proto",
+        "@gazelle_cc//language/cc",
+    ],
+)
+
+go_test(
+    name = "registry_test",
+    srcs = ["registry_test.go"],
+    embed = [":registry"],
+    deps = ["//pkg/config"],
+)

@@ -5,11 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"sort"
 	"strings"
 
+	"github.com/albertocavalcante/bazelle/internal/log"
 	"github.com/albertocavalcante/bazelle/pkg/treesitter"
 )
 
@@ -92,9 +92,6 @@ type BackendConfig struct {
 
 	// HybridLogDiffs enables logging of differences between backends.
 	HybridLogDiffs bool
-
-	// Logger for hybrid diff output. If nil, uses log.Printf.
-	Logger func(format string, args ...any)
 }
 
 // DefaultBackendConfig returns sensible defaults.
@@ -104,15 +101,6 @@ func DefaultBackendConfig() BackendConfig {
 		TreeSitterBackend: treesitter.BackendAuto,
 		HybridPrimary:     BackendHeuristic,
 		HybridLogDiffs:    true,
-		Logger:            nil,
-	}
-}
-
-func (c BackendConfig) log(format string, args ...any) {
-	if c.Logger != nil {
-		c.Logger(format, args...)
-	} else {
-		log.Printf(format, args...)
 	}
 }
 
@@ -452,21 +440,23 @@ func (b *HybridBackend) ParseContent(ctx context.Context, content, path string) 
 
 	if b.logDiffs && hErr == nil && tsErr == nil {
 		if diff := compareResults(hResult, tsResult); diff.HasDifferences() {
-			b.cfg.log("[hybrid] %s: %s", path, diff.String())
+			log.V(3).Debug("hybrid parser diff", "path", path, "diff", diff.String())
 		}
 	}
 
 	// Return based on primary preference with fallback
 	if b.primary == BackendTreeSitter {
 		if tsErr != nil {
-			b.cfg.log("[hybrid] tree-sitter failed for %s, using heuristic: %v", path, tsErr)
+			log.V(3).Debug("hybrid tree-sitter failed, using heuristic",
+				"path", path, "error", tsErr)
 			return hResult, hErr
 		}
 		return tsResult, nil
 	}
 
 	if hErr != nil {
-		b.cfg.log("[hybrid] heuristic failed for %s, using tree-sitter: %v", path, hErr)
+		log.V(3).Debug("hybrid heuristic failed, using tree-sitter",
+			"path", path, "error", hErr)
 		return tsResult, tsErr
 	}
 	return hResult, nil

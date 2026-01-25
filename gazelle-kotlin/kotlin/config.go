@@ -2,9 +2,9 @@ package kotlin
 
 import (
 	"flag"
-	"log"
 	"strings"
 
+	"github.com/albertocavalcante/bazelle/internal/log"
 	"github.com/albertocavalcante/bazelle/pkg/jvm"
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/rule"
@@ -97,7 +97,8 @@ func (*kotlinLang) Configure(c *config.Config, rel string, f *rule.File) {
 		case "hybrid":
 			kc.ParserBackend = BackendHybrid
 		default:
-			log.Printf("WARNING: unknown kotlin_parser_backend %q, using heuristic", value)
+			log.Warn("unknown kotlin_parser_backend, using heuristic",
+				"value", value, "language", "kotlin")
 			kc.ParserBackend = BackendHeuristic
 		}
 	}

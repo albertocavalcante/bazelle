@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/albertocavalcante/bazelle/cmd/bazelle/internal/incremental"
+	"github.com/albertocavalcante/bazelle/internal/log"
 	"github.com/bazelbuild/bazel-gazelle/runner"
 	"github.com/spf13/cobra"
 )
@@ -56,10 +58,16 @@ func init() {
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
+	start := time.Now()
 	wd, err := runner.GetDefaultWorkspaceDirectory()
 	if err != nil {
 		return err
 	}
+
+	log.V(2).Info("starting update",
+		"dir", wd,
+		"incremental", updateFlags.incremental,
+		"check", updateFlags.check)
 
 	// Build gazelle arguments: "update" + defaults + mode + passthrough args
 	// Note: gazelle expects command first, then flags
@@ -90,7 +98,12 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Update state after successful run
-	return updateStateAfterRun(wd)
+	if err := updateStateAfterRun(wd); err != nil {
+		return err
+	}
+
+	log.V(2).Info("update complete", "duration", time.Since(start))
+	return nil
 }
 
 func runUpdateCheck(wd string, args []string) error {

@@ -6,6 +6,7 @@ import (
 	"github.com/albertocavalcante/bazelle/gazelle-groovy/groovy"
 	"github.com/albertocavalcante/bazelle/gazelle-kotlin/kotlin"
 	"github.com/albertocavalcante/bazelle/gazelle-python/python"
+	"github.com/albertocavalcante/bazelle/internal/log"
 	"github.com/albertocavalcante/bazelle/pkg/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	goLang "github.com/bazelbuild/bazel-gazelle/language/go"
@@ -53,6 +54,7 @@ var languageOrder = []string{
 // Languages are returned in a consistent order (proto first, etc.).
 func LoadLanguages(cfg *config.Config) []language.Language {
 	enabled := cfg.GetEnabledLanguages()
+	log.V(2).Info("loading languages", "enabled", enabled)
 
 	// Build a set of enabled languages for quick lookup
 	enabledSet := make(map[string]bool, len(enabled))
@@ -69,11 +71,14 @@ func LoadLanguages(cfg *config.Config) []language.Language {
 		factory, ok := factories[name]
 		if !ok {
 			// Language not available (e.g., java, scala, bzl)
+			log.V(3).Debug("language not available", "name", name)
 			continue
 		}
 		languages = append(languages, factory())
+		log.V(3).Debug("loaded language", "name", name)
 	}
 
+	log.V(2).Info("languages loaded", "count", len(languages))
 	return languages
 }
 

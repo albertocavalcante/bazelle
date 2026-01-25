@@ -452,20 +452,6 @@ func TestCompareResults(t *testing.T) {
 	}
 }
 
-func TestBackendConfig_Logger(t *testing.T) {
-	var logged string
-	cfg := DefaultBackendConfig()
-	cfg.Logger = func(format string, args ...any) {
-		logged = format
-	}
-
-	cfg.log("test %s", "message")
-
-	if logged != "test %s" {
-		t.Errorf("Expected custom logger to be called, got %q", logged)
-	}
-}
-
 func TestErrBackendNotSupported_Error(t *testing.T) {
 	err := ErrBackendNotSupported{Backend: "test", Reason: "some reason"}
 	if !strings.Contains(err.Error(), "test") || !strings.Contains(err.Error(), "some reason") {

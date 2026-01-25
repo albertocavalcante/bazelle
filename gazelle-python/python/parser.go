@@ -55,7 +55,7 @@ func (p *PythonParser) ParseFile(path string) (*ParseResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	result := &ParseResult{
 		FromImports: make(map[string][]string),
