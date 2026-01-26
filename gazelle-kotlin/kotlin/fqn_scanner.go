@@ -224,14 +224,13 @@ func (s *FQNScanner) shouldInclude(fqn string) bool {
 	// Get the prefix (first segment)
 	prefix := parts[0]
 
-	// Include common third-party prefixes
+	// Include kotlinx explicitly (it's a separate dependency from kotlin stdlib)
+	if prefix == "kotlinx" {
+		return true
+	}
+
 	// Exclude kotlin/java stdlib (they're usually already on classpath)
 	if s.stdlibPrefixes[prefix] {
-		// Include kotlinx but not kotlin
-		if prefix == "kotlinx" {
-			return true
-		}
-		// Exclude standard library
 		return false
 	}
 
