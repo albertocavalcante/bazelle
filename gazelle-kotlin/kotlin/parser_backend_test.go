@@ -3,7 +3,7 @@ package kotlin
 import (
 	"context"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -122,7 +122,7 @@ class Foo
 		t.Fatalf("ParseContent failed: %v", err)
 	}
 
-	sort.Strings(result.StarImports)
+	slices.Sort(result.StarImports)
 	expected := []string{"kotlin.collections", "org.junit.jupiter.api"}
 	if !reflect.DeepEqual(result.StarImports, expected) {
 		t.Errorf("StarImports: expected %v, got %v", expected, result.StarImports)

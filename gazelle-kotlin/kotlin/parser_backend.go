@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/albertocavalcante/bazelle/internal/log"
@@ -309,8 +309,8 @@ func extractImportsFromAST(root treesitter.Node, source []byte, result *ParseRes
 		processImportNode(node, source, result)
 	}
 
-	sort.Strings(result.Imports)
-	sort.Strings(result.StarImports)
+	slices.Sort(result.Imports)
+	slices.Sort(result.StarImports)
 }
 
 // processImportNode extracts details from a single import node.
@@ -560,7 +560,7 @@ func sortedDifference(a, b map[string]struct{}) []string {
 			diff = append(diff, k)
 		}
 	}
-	sort.Strings(diff)
+	slices.Sort(diff)
 	return diff
 }
 

@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -380,7 +380,7 @@ func TestGetAllImports(t *testing.T) {
 	}
 
 	imports := GetAllImports(results)
-	sort.Strings(imports)
+	slices.Sort(imports)
 
 	expected := []string{"com.example.Bar", "com.example.Baz", "com.example.Foo"}
 	if !reflect.DeepEqual(imports, expected) {
@@ -395,7 +395,7 @@ func TestGetAllDependencies(t *testing.T) {
 	}
 
 	deps := GetAllDependencies(results)
-	sort.Strings(deps)
+	slices.Sort(deps)
 
 	expected := []string{"com.example.Bar", "com.example.Foo", "io.ktor.HttpClient"}
 	if !reflect.DeepEqual(deps, expected) {
@@ -697,7 +697,7 @@ func TestRemoveStringLiterals_NoRecompilation(t *testing.T) {
 	}
 
 	// Run many times to ensure consistent behavior (performance test would show regression)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		removeStringLiterals(`val test = "hello" and 'c'`)
 	}
 }
@@ -748,7 +748,7 @@ func TestGetImportInfo_EfficientAliasLookup(t *testing.T) {
 	}
 
 	// Run multiple times to ensure consistent performance
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		GetImportInfo(result)
 	}
 }

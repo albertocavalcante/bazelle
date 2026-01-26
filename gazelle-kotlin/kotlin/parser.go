@@ -2,9 +2,10 @@ package kotlin
 
 import (
 	"bufio"
+	"maps"
 	"os"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -253,12 +254,7 @@ func buildAllDependencies(result *ParseResult) []string {
 	// Note: Star imports are handled separately during resolution
 	// since we don't know which specific classes are used
 
-	deps := make([]string, 0, len(depSet))
-	for dep := range depSet {
-		deps = append(deps, dep)
-	}
-	sort.Strings(deps)
-	return deps
+	return slices.Sorted(maps.Keys(depSet))
 }
 
 // cleanPackageName removes backticks from package names.
@@ -275,12 +271,7 @@ func GetPackages(results []*ParseResult) []string {
 		}
 	}
 
-	packages := make([]string, 0, len(pkgSet))
-	for pkg := range pkgSet {
-		packages = append(packages, pkg)
-	}
-	sort.Strings(packages)
-	return packages
+	return slices.Sorted(maps.Keys(pkgSet))
 }
 
 // GetAllImports returns all unique imports from parse results.
@@ -292,12 +283,7 @@ func GetAllImports(results []*ParseResult) []string {
 		}
 	}
 
-	imports := make([]string, 0, len(importSet))
-	for imp := range importSet {
-		imports = append(imports, imp)
-	}
-	sort.Strings(imports)
-	return imports
+	return slices.Sorted(maps.Keys(importSet))
 }
 
 // GetAllDependencies returns all unique dependencies (imports + FQNs) from parse results.
@@ -309,12 +295,7 @@ func GetAllDependencies(results []*ParseResult) []string {
 		}
 	}
 
-	deps := make([]string, 0, len(depSet))
-	for dep := range depSet {
-		deps = append(deps, dep)
-	}
-	sort.Strings(deps)
-	return deps
+	return slices.Sorted(maps.Keys(depSet))
 }
 
 // ImportInfo contains detailed information about an import.

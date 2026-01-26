@@ -3,6 +3,9 @@
 package registry
 
 import (
+	"maps"
+	"slices"
+
 	"github.com/albertocavalcante/bazelle/gazelle-groovy/groovy"
 	"github.com/albertocavalcante/bazelle/gazelle-kotlin/kotlin"
 	"github.com/albertocavalcante/bazelle/gazelle-python/python"
@@ -97,11 +100,7 @@ func LoadLanguagesByName(names []string) []language.Language {
 
 // AvailableLanguages returns the list of available language names.
 func AvailableLanguages() []string {
-	var names []string
-	for name := range factories {
-		names = append(names, name)
-	}
-	return names
+	return slices.Sorted(maps.Keys(factories))
 }
 
 // IsLanguageAvailable checks if a language factory is registered.

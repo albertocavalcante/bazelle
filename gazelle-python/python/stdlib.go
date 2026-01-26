@@ -3,7 +3,9 @@ package python
 import (
 	"bufio"
 	_ "embed"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -46,11 +48,7 @@ func IsStdlib(module string) bool {
 func GetStdlibModules() []string {
 	stdlibModulesOnce.Do(initStdlibModules)
 
-	modules := make([]string, 0, len(stdlibModules))
-	for module := range stdlibModules {
-		modules = append(modules, module)
-	}
-	return modules
+	return slices.Sorted(maps.Keys(stdlibModules))
 }
 
 // LoadCustomStdlibModules loads stdlib modules from a custom file.

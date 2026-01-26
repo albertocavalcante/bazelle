@@ -84,9 +84,9 @@ func TestIsStdlibConcurrent(t *testing.T) {
 	// Test that IsStdlib is safe for concurrent access
 	done := make(chan bool)
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		go func() {
-			for j := 0; j < 100; j++ {
+			for range 100 {
 				IsStdlib("os")
 				IsStdlib("numpy")
 				IsStdlib("json")
@@ -95,7 +95,7 @@ func TestIsStdlibConcurrent(t *testing.T) {
 		}()
 	}
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		<-done
 	}
 }

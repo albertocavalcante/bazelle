@@ -2,7 +2,6 @@ package kotlin
 
 import (
 	"path/filepath"
-	"sort"
 
 	"github.com/albertocavalcante/bazelle/internal/log"
 	"github.com/albertocavalcante/bazelle/pkg/jvm"
@@ -108,7 +107,6 @@ func (k *kotlinLang) generateTestRule(args language.GenerateArgs, kc *KotlinConf
 	}
 	if len(results) > 0 {
 		packages := GetPackages(results)
-		sort.Strings(packages)
 		if len(packages) > 0 {
 			r.SetAttr("test_packages", packages)
 		}

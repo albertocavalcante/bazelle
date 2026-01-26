@@ -238,7 +238,7 @@ func TestDebouncer_MaxPendingLimit(t *testing.T) {
 	defer d.Stop()
 
 	// Add more than MaxPendingDirs directories
-	for i := 0; i < MaxPendingDirs+10; i++ {
+	for i := range MaxPendingDirs + 10 {
 		d.Add(fmt.Sprintf("dir%d", i))
 	}
 
