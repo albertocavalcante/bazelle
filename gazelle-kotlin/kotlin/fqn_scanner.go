@@ -121,6 +121,18 @@ func (s *FQNScanner) Scan(content string, codeStartLine int) *ScanResult {
 	inTripleQuote := false
 	inBlockComment := false
 
+	// addFQN is a helper to deduplicate and track FQN locations
+	addFQN := func(fqn string, lineNum int) {
+		fqn = cleanFQN(fqn)
+		if s.shouldInclude(fqn) {
+			if !fqnSet[fqn] {
+				fqnSet[fqn] = true
+				result.FQNs = append(result.FQNs, fqn)
+			}
+			result.FQNToLocations[fqn] = append(result.FQNToLocations[fqn], lineNum+1)
+		}
+	}
+
 	for lineNum := codeStartLine; lineNum < len(lines); lineNum++ {
 		line := lines[lineNum]
 
@@ -138,54 +150,22 @@ func (s *FQNScanner) Scan(content string, codeStartLine int) *ScanResult {
 
 		// Scan with all FQN patterns
 		for _, pattern := range s.fqnPatterns {
-			matches := pattern.FindAllStringSubmatch(line, -1)
-			for _, match := range matches {
-				fqn := match[0]
-				if len(match) > 1 && match[1] != "" {
-					// Some patterns capture just the class name in group 1
-					// Use the full match (group 0) for the FQN
-				}
-
-				// Clean up the FQN
-				fqn = cleanFQN(fqn)
-
-				if s.shouldInclude(fqn) {
-					if !fqnSet[fqn] {
-						fqnSet[fqn] = true
-						result.FQNs = append(result.FQNs, fqn)
-					}
-					result.FQNToLocations[fqn] = append(result.FQNToLocations[fqn], lineNum+1)
-				}
+			for _, match := range pattern.FindAllStringSubmatch(line, -1) {
+				addFQN(match[0], lineNum)
 			}
 		}
 
-		// Also scan with type usage pattern
-		typeMatches := s.typeUsagePattern.FindAllStringSubmatch(line, -1)
-		for _, match := range typeMatches {
+		// Scan with type usage pattern (: Type, as Type, is Type)
+		for _, match := range s.typeUsagePattern.FindAllStringSubmatch(line, -1) {
 			if len(match) > 1 {
-				fqn := cleanFQN(match[1])
-				if s.shouldInclude(fqn) {
-					if !fqnSet[fqn] {
-						fqnSet[fqn] = true
-						result.FQNs = append(result.FQNs, fqn)
-					}
-					result.FQNToLocations[fqn] = append(result.FQNToLocations[fqn], lineNum+1)
-				}
+				addFQN(match[1], lineNum)
 			}
 		}
 
 		// Scan for FQN function calls
-		callMatches := s.fqnCallPattern.FindAllStringSubmatch(line, -1)
-		for _, match := range callMatches {
+		for _, match := range s.fqnCallPattern.FindAllStringSubmatch(line, -1) {
 			if len(match) > 1 {
-				fqn := cleanFQN(match[1])
-				if s.shouldInclude(fqn) {
-					if !fqnSet[fqn] {
-						fqnSet[fqn] = true
-						result.FQNs = append(result.FQNs, fqn)
-					}
-					result.FQNToLocations[fqn] = append(result.FQNToLocations[fqn], lineNum+1)
-				}
+				addFQN(match[1], lineNum)
 			}
 		}
 	}

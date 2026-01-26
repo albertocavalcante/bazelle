@@ -64,6 +64,14 @@ func (t *Tracker) computeChangesWithLazyHash(ctx context.Context, oldIdx, fastId
 
 	// Check for new and modified files
 	for path, newEntry := range newEntries {
+		// Check for cancellation periodically
+		select {
+		case <-ctx.Done():
+			cs.sort()
+			return cs
+		default:
+		}
+
 		oldEntry, exists := oldEntries[path]
 		if !exists {
 			cs.Added = append(cs.Added, path)
