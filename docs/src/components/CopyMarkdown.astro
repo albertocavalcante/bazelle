@@ -1,0 +1,260 @@
+---
+/**
+ * Copy as Markdown button component
+ * Allows users to copy the current page's markdown content to clipboard
+ */
+
+interface Props {
+  /** The page slug to fetch markdown from */
+  slug: string;
+}
+
+const { slug } = Astro.props;
+---
+
+<copy-markdown-button data-slug={slug}>
+  <button class="copy-markdown-btn" title="Copy page as Markdown" aria-label="Copy page as Markdown">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-copy">
+      <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+    </svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-check" style="display: none;">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    <span class="copy-text">Copy as Markdown</span>
+  </button>
+</copy-markdown-button>
+
+<style>
+  .copy-markdown-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--sl-color-gray-2);
+    background: var(--sl-color-gray-6);
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .copy-markdown-btn:hover {
+    color: var(--sl-color-white);
+    background: var(--sl-color-gray-5);
+    border-color: var(--sl-color-gray-4);
+  }
+
+  .copy-markdown-btn:active {
+    transform: scale(0.98);
+  }
+
+  .copy-markdown-btn.copied {
+    color: var(--sl-color-green);
+    border-color: var(--sl-color-green);
+  }
+
+  .copy-markdown-btn.copied .icon-copy {
+    display: none;
+  }
+
+  .copy-markdown-btn.copied .icon-check {
+    display: block !important;
+  }
+
+  .copy-markdown-btn.copied .copy-text::after {
+    content: 'd!';
+  }
+
+  .copy-markdown-btn.copied .copy-text {
+    visibility: hidden;
+    position: relative;
+  }
+
+  .copy-markdown-btn.copied .copy-text::after {
+    content: 'Copied!';
+    visibility: visible;
+    position: absolute;
+    left: 0;
+  }
+
+  .copy-markdown-btn svg {
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 50rem) {
+    .copy-text {
+      display: none;
+    }
+    .copy-markdown-btn {
+      padding: 0.375rem;
+    }
+  }
+</style>
+
+<script>
+  class CopyMarkdownButton extends HTMLElement {
+    constructor() {
+      super();
+      const button = this.querySelector('button');
+      const slug = this.dataset.slug || '';
+
+      button?.addEventListener('click', async () => {
+        try {
+          // Get the markdown content from the llms-full.txt or construct from page
+          const markdown = await this.getMarkdownContent(slug);
+          await navigator.clipboard.writeText(markdown);
+
+          button.classList.add('copied');
+          setTimeout(() => {
+            button.classList.remove('copied');
+          }, 2000);
+        } catch (error) {
+          console.error('Failed to copy markdown:', error);
+          // Fallback: copy visible text content
+          const content = document.querySelector('.sl-markdown-content');
+          if (content) {
+            await navigator.clipboard.writeText(content.innerText);
+            button.classList.add('copied');
+            setTimeout(() => {
+              button.classList.remove('copied');
+            }, 2000);
+          }
+        }
+      });
+    }
+
+    async getMarkdownContent(slug: string): Promise<string> {
+      // Try to extract markdown from the current page's content
+      const content = document.querySelector('.sl-markdown-content');
+      const title = document.querySelector('h1#_top')?.textContent || '';
+
+      if (!content) {
+        throw new Error('Content not found');
+      }
+
+      // Convert the HTML content to a reasonable markdown representation
+      const markdown = this.htmlToMarkdown(content, title);
+      return markdown;
+    }
+
+    htmlToMarkdown(element: Element, title: string): string {
+      const lines: string[] = [];
+
+      // Add title
+      if (title) {
+        lines.push(`# ${title.trim()}`);
+        lines.push('');
+      }
+
+      // Process content
+      const processNode = (node: Node, depth: number = 0): string => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          return node.textContent || '';
+        }
+
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+          return '';
+        }
+
+        const el = node as Element;
+        const tag = el.tagName.toLowerCase();
+        const children = Array.from(el.childNodes).map(n => processNode(n, depth)).join('');
+
+        switch (tag) {
+          case 'h1':
+            return `# ${children.trim()}\n\n`;
+          case 'h2':
+            return `## ${children.trim()}\n\n`;
+          case 'h3':
+            return `### ${children.trim()}\n\n`;
+          case 'h4':
+            return `#### ${children.trim()}\n\n`;
+          case 'h5':
+            return `##### ${children.trim()}\n\n`;
+          case 'h6':
+            return `###### ${children.trim()}\n\n`;
+          case 'p':
+            return `${children.trim()}\n\n`;
+          case 'strong':
+          case 'b':
+            return `**${children}**`;
+          case 'em':
+          case 'i':
+            return `*${children}*`;
+          case 'code':
+            if (el.parentElement?.tagName.toLowerCase() === 'pre') {
+              return children;
+            }
+            return `\`${children}\``;
+          case 'pre':
+            const codeEl = el.querySelector('code');
+            const lang = codeEl?.className.match(/language-(\w+)/)?.[1] || '';
+            const code = codeEl?.textContent || children;
+            return `\`\`\`${lang}\n${code.trim()}\n\`\`\`\n\n`;
+          case 'a':
+            const href = el.getAttribute('href') || '';
+            return `[${children}](${href})`;
+          case 'ul':
+            return children + '\n';
+          case 'ol':
+            return children + '\n';
+          case 'li':
+            const parent = el.parentElement?.tagName.toLowerCase();
+            const prefix = parent === 'ol' ? '1. ' : '- ';
+            return `${prefix}${children.trim()}\n`;
+          case 'blockquote':
+            return children.split('\n').map(line => `> ${line}`).join('\n') + '\n\n';
+          case 'hr':
+            return '---\n\n';
+          case 'br':
+            return '\n';
+          case 'table':
+            return this.processTable(el) + '\n\n';
+          case 'img':
+            const alt = el.getAttribute('alt') || '';
+            const src = el.getAttribute('src') || '';
+            return `![${alt}](${src})`;
+          case 'div':
+          case 'section':
+          case 'article':
+          case 'aside':
+          case 'span':
+            return children;
+          default:
+            return children;
+        }
+      };
+
+      const result = processNode(element);
+
+      // Clean up multiple newlines
+      return result.replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    processTable(table: Element): string {
+      const rows = Array.from(table.querySelectorAll('tr'));
+      if (rows.length === 0) return '';
+
+      const lines: string[] = [];
+
+      rows.forEach((row, index) => {
+        const cells = Array.from(row.querySelectorAll('th, td'));
+        const cellContents = cells.map(cell => cell.textContent?.trim() || '');
+        lines.push(`| ${cellContents.join(' | ')} |`);
+
+        // Add separator after header row
+        if (index === 0) {
+          lines.push(`| ${cells.map(() => '---').join(' | ')} |`);
+        }
+      });
+
+      return lines.join('\n');
+    }
+  }
+
+  customElements.define('copy-markdown-button', CopyMarkdownButton);
+</script>

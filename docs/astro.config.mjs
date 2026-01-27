@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import starlightLlmsTxt from 'starlight-llms-txt';
 
 // https://astro.build/config
 export default defineConfig({
@@ -38,6 +39,17 @@ export default defineConfig({
       customCss: [
         './src/styles/custom.css',
       ],
+      plugins: [
+        starlightLlmsTxt({
+          projectName: 'Bazelle',
+          description: 'Bazelle is a polyglot Gazelle CLI - a unified BUILD file generator for Bazel with support for Go, Kotlin, Python, and C/C++.',
+          promote: ['index', 'getting-started', 'installation', 'configuration'],
+          demote: ['faq', 'troubleshooting', 'contributing'],
+        }),
+      ],
+      components: {
+        PageTitle: './src/components/PageTitle.astro',
+      },
       sidebar: [
         {
           label: 'Getting Started',

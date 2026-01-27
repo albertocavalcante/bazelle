@@ -1,0 +1,42 @@
+---
+/**
+ * Custom PageTitle component that includes a "Copy as Markdown" button
+ * Overrides @astrojs/starlight/components/PageTitle.astro
+ */
+import CopyMarkdown from './CopyMarkdown.astro';
+
+// PAGE_TITLE_ID constant from Starlight
+const PAGE_TITLE_ID = '_top';
+
+const { entry } = Astro.locals.starlightRoute;
+const { data, id } = entry;
+
+// Don't show copy button on splash pages (like homepage)
+const isSplash = data.template === 'splash';
+---
+
+<div class="page-title-wrapper">
+  <h1 id={PAGE_TITLE_ID}>{data.title}</h1>
+  {!isSplash && <CopyMarkdown slug={id} />}
+</div>
+
+<style>
+  .page-title-wrapper {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+
+  h1 {
+    font-size: var(--sl-text-h1);
+    line-height: var(--sl-line-height-headings);
+    font-weight: 600;
+    color: var(--sl-color-white);
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+  }
+</style>
