@@ -1,6 +1,41 @@
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
 exports_files(["install-local.sh"])
 
 sh_binary(
     name = "verify_prebuilt_protoc",
     srcs = ["verify_prebuilt_protoc.sh"],
+)
+
+# ==============================================================================
+# genquery examples - useful for build-time dependency analysis
+# ==============================================================================
+# Run: bazel build //tools/scripts:<query_name> && cat bazel-bin/tools/scripts/<query_name>
+
+# List all external Maven/Java dependencies used by bazelle
+genquery(
+    name = "external_java_deps",
+    expression = "filter('@.*maven.*', deps(//:bazelle))",
+    scope = ["//:bazelle"],
+)
+
+# List all Go modules used
+genquery(
+    name = "external_go_deps",
+    expression = "filter('@.*gazelle.*|@.*rules_go.*|@.*go_sdk.*', deps(//:bazelle))",
+    scope = ["//:bazelle"],
+)
+
+# Find all proto_library targets in the dependency graph
+genquery(
+    name = "proto_deps",
+    expression = "kind('proto_library', deps(//:bazelle))",
+    scope = ["//:bazelle"],
+)
+
+# List all cc_library/cc_binary targets (useful for understanding native deps like tree-sitter)
+genquery(
+    name = "native_cc_deps",
+    expression = "kind('cc_.*', deps(//:bazelle))",
+    scope = ["//:bazelle"],
 )
