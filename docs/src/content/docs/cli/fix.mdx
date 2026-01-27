@@ -1,0 +1,141 @@
+---
+title: fix
+description: Fix BUILD files with potentially breaking changes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `fix` command runs Gazelle in fix mode, which may make breaking changes such as deleting obsolete rules or renaming targets.
+
+<Aside type="caution">
+Unlike `update`, the `fix` command may delete or rename existing rules. Use `--dry-run` to preview changes before applying.
+</Aside>
+
+## Usage
+
+```bash
+bazelle fix [flags] [path...]
+```
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--check` | Check if BUILD files need fixing (exit 1 if changes needed) |
+| `--dry-run` | Show what would change without applying |
+| `--verbose` | Show detailed output |
+
+## Examples
+
+### Basic Fix
+
+Fix all BUILD files in the workspace:
+
+```bash
+bazelle fix
+```
+
+Fix a specific directory:
+
+```bash
+bazelle fix ./src/mypackage
+```
+
+### Preview Changes
+
+See what would change without applying:
+
+```bash
+bazelle fix --dry-run
+```
+
+Example output:
+
+```diff
+--- src/old/BUILD.bazel
++++ src/old/BUILD.bazel
+@@ -1,10 +1,3 @@
+ load("@rules_go//go:def.bzl", "go_library")
+
+-go_library(
+-    name = "deleted_package",
+-    srcs = ["deleted.go"],
+-    importpath = "github.com/org/repo/src/old",
+-    visibility = ["//visibility:public"],
+-)
+-
+ go_library(
+     name = "old",
+```
+
+### CI Integration
+
+Check if BUILD files need fixing:
+
+```bash
+bazelle fix --check
+```
+
+### Verbose Mode
+
+Show detailed information about changes:
+
+```bash
+bazelle fix --verbose
+```
+
+## When to Use `fix` vs `update`
+
+| Scenario | Command |
+|----------|---------|
+| Added new source files | `update` |
+| Modified existing files | `update` |
+| Renamed source files | `fix` |
+| Deleted source files | `fix` |
+| Changed package structure | `fix` |
+| Migrating rule types | `fix` |
+
+## What `fix` Does
+
+The `fix` command may:
+
+1. **Delete obsolete rules**: Removes targets for deleted source files
+2. **Rename targets**: Updates target names to match new file names
+3. **Update load statements**: Removes unused loads, adds missing ones
+4. **Reorganize rules**: Consolidates split rules when appropriate
+
+## Passthrough Flags
+
+Like `update`, unrecognized flags are passed to Gazelle:
+
+```bash
+bazelle fix -go_prefix=github.com/org/repo
+```
+
+## Exit Codes
+
+| Code | Mode | Meaning |
+|------|------|---------|
+| 0 | Normal | Fix completed successfully |
+| 0 | `--check` | BUILD files are up to date |
+| 1 | `--check` | BUILD files need fixing |
+| 1 | Any | Error occurred |
+
+## Safe Workflow
+
+When making significant changes to your codebase:
+
+```bash
+# 1. Preview what fix would do
+bazelle fix --dry-run
+
+# 2. Review the changes
+# 3. Apply if they look correct
+bazelle fix
+
+# 4. Build to verify
+bazel build //...
+
+# 5. Run tests
+bazel test //...
+```

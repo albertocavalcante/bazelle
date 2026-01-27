@@ -1,5 +1,26 @@
 package python
 
+// Known limitations - TODOs for future implementation:
+//
+// TODO(bazelle): Add pip dependency resolution from requirements.txt
+//   - Parse requirements.txt to identify third-party dependencies
+//   - Map pip package names to Bazel targets via rules_python pip integration
+//
+// TODO(bazelle): Add type stub (.pyi) file handling
+//   - Detect .pyi files alongside .py files
+//   - Generate appropriate rules for type stubs
+//
+// TODO(bazelle): Support relative imports in dependency resolution
+//   - Currently relative imports are skipped
+//   - Need to resolve relative imports to absolute package paths
+//
+// TODO(bazelle): Add namespace package support
+//   - Detect namespace packages (missing __init__.py)
+//   - Handle implicit namespace packages properly
+//
+// TODO(bazelle): Auto-update requirements.txt
+//   - Detect new third-party imports and suggest additions
+
 import (
 	"os"
 	"path/filepath"

@@ -1,0 +1,95 @@
+---
+title: Language Support
+description: Overview of supported languages in Bazelle
+---
+
+import { Card, CardGrid, Aside } from '@astrojs/starlight/components';
+
+Bazelle provides support for multiple programming languages through Gazelle extensions. Each language extension must be explicitly enabled (except Go and Proto which are enabled by default).
+
+## Registered Languages
+
+<CardGrid>
+  <Card title="Go" icon="seti:go">
+    Built-in Gazelle support for `go_library`, `go_binary`, and `go_test` rules. **Enabled by default.**
+    [Learn more →](/bazelle/languages/go/)
+  </Card>
+  <Card title="Kotlin" icon="seti:kotlin">
+    Custom extension for `kt_jvm_library` and `kt_jvm_test`. Requires Maven-style layout.
+    [Learn more →](/bazelle/languages/kotlin/)
+  </Card>
+  <Card title="Python" icon="seti:python">
+    Custom extension for `py_library`, `py_binary`, and `py_test`. Detects `if __name__ == "__main__":` blocks.
+    [Learn more →](/bazelle/languages/python/)
+  </Card>
+  <Card title="C/C++" icon="seti:c">
+    Via gazelle_cc for `cc_library`, `cc_binary`, and `cc_test`.
+    [Learn more →](/bazelle/languages/cpp/)
+  </Card>
+</CardGrid>
+
+## Status Overview
+
+| Language | Registered | Default | Rules Generated |
+|----------|------------|---------|-----------------|
+| Go | ✅ Yes | Enabled | `go_library`, `go_binary`, `go_test` |
+| Proto | ✅ Yes | Enabled | `proto_library`, `go_proto_library` |
+| Kotlin | ✅ Yes | Disabled | `kt_jvm_library`, `kt_jvm_test` |
+| Python | ✅ Yes | Disabled | `py_library`, `py_binary`, `py_test` |
+| C/C++ | ✅ Yes | Disabled | `cc_library`, `cc_binary`, `cc_test` |
+| Groovy | ✅ Yes | Disabled | `groovy_library`, `groovy_test` |
+| Java | ❌ No | — | Blocked on Bazel 9 compatibility |
+| Scala | ❌ No | — | Planned |
+| Rust | ❌ No | — | Blocked on proto dependencies |
+
+<Aside type="note">
+Only Go and Proto are enabled by default. Other languages must be explicitly enabled via directives like `# gazelle:kotlin_enabled true`.
+</Aside>
+
+## How It Works
+
+Bazelle runs all enabled language extensions on your codebase. Each extension:
+
+1. **Scans** source files to detect language-specific patterns
+2. **Parses** files to extract imports and dependencies
+3. **Generates** appropriate BUILD rules with correct `deps` and `srcs`
+
+## Language Detection
+
+When you run `bazelle init`, it detects languages by scanning for file extensions:
+
+| Extensions | Language |
+|------------|----------|
+| `.go` | Go |
+| `.kt`, `.kts` | Kotlin |
+| `.java` | Java |
+| `.py` | Python |
+| `.proto` | Proto |
+| `.groovy` | Groovy |
+| `.cc`, `.cpp`, `.cxx`, `.c`, `.h`, `.hpp`, `.hxx` | C/C++ |
+
+**Ignored directories:** `bazel-*`, `.*`, `node_modules`, `__pycache__`, `vendor`
+
+## Enabling Languages
+
+Enable languages via BUILD file directives:
+
+```python
+# In your root BUILD.bazel
+
+# Enable Kotlin
+# gazelle:kotlin_enabled true
+
+# Enable Python
+# gazelle:python_enabled true
+
+# Enable Groovy
+# gazelle:groovy_enabled true
+```
+
+Or filter at runtime:
+
+```bash
+# Only run Go and Kotlin extensions
+bazelle update --languages go,kotlin
+```

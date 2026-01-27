@@ -1,0 +1,153 @@
+---
+title: Python
+description: Python language support in Bazelle
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Bazelle includes a custom Python extension that generates `py_library`, `py_binary`, and `py_test` rules.
+
+<Aside type="note">
+Python is **disabled by default**. Enable it with `# gazelle:python_enabled true` in your BUILD file.
+</Aside>
+
+## Generated Rules
+
+| Source Pattern | Generated Rule |
+|---------------|----------------|
+| `*.py` files (non-test) | `py_library` |
+| `*_test.py`, `test_*.py` | `py_test` |
+| Files with `if __name__ == "__main__":` | `py_binary` |
+
+## Configuration
+
+### Enable Python
+
+```python
+# In your root BUILD.bazel
+# gazelle:python_enabled true
+```
+
+### Available Directives
+
+```python
+# Enable/disable Python extension
+# gazelle:python_enabled true
+
+# Custom macros (optional)
+# gazelle:python_library_macro py_library
+# gazelle:python_test_macro py_test
+# gazelle:python_binary_macro py_binary
+
+# Visibility for generated targets
+# gazelle:python_visibility //visibility:public
+
+# Custom load path for macros
+# gazelle:python_load //my/macros:defs.bzl
+
+# Test framework: "pytest" (default) or "unittest"
+# gazelle:python_test_framework pytest
+
+# Custom stdlib modules file (optional)
+# gazelle:python_stdlib_modules_file //:stdlib_modules.txt
+```
+
+## Example
+
+Given these Python source files:
+
+```python title="src/greeter/greeter.py"
+def hello(name: str) -> str:
+    return f"Hello, {name}!"
+```
+
+```python title="src/greeter/greeter_test.py"
+from src.greeter.greeter import hello
+
+def test_hello():
+    assert hello("World") == "Hello, World!"
+```
+
+Bazelle generates:
+
+```python title="src/greeter/BUILD.bazel"
+load("@rules_python//python:defs.bzl", "py_library", "py_test")
+
+py_library(
+    name = "greeter",
+    srcs = glob(
+        ["*.py"],
+        exclude = ["*_test.py", "test_*.py"],
+    ),
+    visibility = ["//visibility:public"],
+)
+
+py_test(
+    name = "greeter_test",
+    srcs = glob(["*_test.py", "test_*.py"]),
+    deps = [":greeter"],
+)
+```
+
+## Binary Detection
+
+Files containing `if __name__ == "__main__":` blocks are detected and generate `py_binary` rules:
+
+```python title="src/cli/main.py"
+def main():
+    print("Hello from CLI!")
+
+if __name__ == "__main__":
+    main()
+```
+
+Generates:
+
+```python title="src/cli/BUILD.bazel"
+py_binary(
+    name = "main",
+    srcs = ["main.py"],
+    main = "main.py",
+)
+```
+
+## Test Detection
+
+Test files are detected by filename patterns:
+
+- `*_test.py` - e.g., `greeter_test.py`
+- `test_*.py` - e.g., `test_greeter.py`
+- Files in `/tests/` directories
+
+## Import Parsing
+
+The Python parser extracts imports to determine dependencies:
+
+```python
+import os                      # Standard library (ignored)
+import requests               # Third-party (needs manual dep)
+from mypackage import utils   # Internal (resolved to //mypackage:utils)
+from . import sibling         # Relative (internal)
+```
+
+<Aside type="caution">
+Third-party dependencies (like `requests`) must be manually configured via rules_python's pip integration. Bazelle does not auto-resolve pip packages.
+</Aside>
+
+## Stdlib Modules
+
+Bazelle includes a built-in list of Python standard library modules to avoid creating dependencies on them. You can provide a custom list:
+
+```python
+# gazelle:python_stdlib_modules_file //:my_stdlib_modules.txt
+```
+
+## Limitations
+
+Current limitations of the Python extension:
+
+- No automatic pip dependency resolution (manual deps needed)
+- No `requirements.txt` auto-update
+- No type stub (`.pyi`) handling
+- Relative imports are skipped during dependency resolution
+- No namespace package support

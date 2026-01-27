@@ -1,0 +1,311 @@
+---
+title: CI/CD Integration
+description: Add Bazelle to your continuous integration pipeline
+---
+
+import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+This guide shows how to integrate Bazelle into your CI/CD pipeline to ensure BUILD files stay in sync.
+
+## Overview
+
+Bazelle's `--check` flag makes CI integration simple:
+
+```bash
+bazelle update --check
+```
+
+This command:
+- Runs Bazelle in diff mode (no changes applied)
+- Exits with code 0 if BUILD files are up to date
+- Exits with code 1 if changes are needed
+
+## GitHub Actions
+
+<Tabs>
+  <TabItem label="Basic">
+    ```yaml title=".github/workflows/ci.yml"
+    name: CI
+
+    on:
+      push:
+        branches: [main]
+      pull_request:
+        branches: [main]
+
+    jobs:
+      build-check:
+        runs-on: ubuntu-24.04
+        steps:
+          - uses: actions/checkout@v4
+
+          - name: Setup Bazelisk
+            uses: bazelbuild/setup-bazelisk@v3
+
+          - name: Build Bazelle
+            run: bazel build //cmd/bazelle
+
+          - name: Check BUILD files
+            run: |
+              ./bazel-bin/cmd/bazelle/bazelle_/bazelle update --check
+
+          - name: Build
+            run: bazel build //...
+
+          - name: Test
+            run: bazel test //...
+    ```
+  </TabItem>
+  <TabItem label="With Caching">
+    ```yaml title=".github/workflows/ci.yml"
+    name: CI
+
+    on:
+      push:
+        branches: [main]
+      pull_request:
+        branches: [main]
+
+    jobs:
+      build-check:
+        runs-on: ubuntu-24.04
+        steps:
+          - uses: actions/checkout@v4
+
+          - name: Setup Bazelisk
+            uses: bazelbuild/setup-bazelisk@v3
+
+          - name: Mount Bazel cache
+            uses: actions/cache@v4
+            with:
+              path: ~/.cache/bazel
+              key: bazel-${{ runner.os }}-${{ hashFiles('MODULE.bazel') }}
+              restore-keys: |
+                bazel-${{ runner.os }}-
+
+          - name: Build Bazelle
+            run: bazel build //cmd/bazelle
+
+          - name: Check BUILD files are up to date
+            run: |
+              ./bazel-bin/cmd/bazelle/bazelle_/bazelle update --check
+            continue-on-error: false
+
+          - name: Build all targets
+            run: bazel build //...
+
+          - name: Run tests
+            run: bazel test //...
+    ```
+  </TabItem>
+</Tabs>
+
+## GitLab CI
+
+```yaml title=".gitlab-ci.yml"
+stages:
+  - check
+  - build
+  - test
+
+variables:
+  BAZEL_CACHE: "${CI_PROJECT_DIR}/.cache/bazel"
+
+cache:
+  key: bazel-${CI_COMMIT_REF_SLUG}
+  paths:
+    - .cache/bazel
+
+check-build-files:
+  stage: check
+  image: gcr.io/bazel-public/bazel:latest
+  script:
+    - bazel build //cmd/bazelle
+    - ./bazel-bin/cmd/bazelle/bazelle_/bazelle update --check
+
+build:
+  stage: build
+  image: gcr.io/bazel-public/bazel:latest
+  script:
+    - bazel build //...
+
+test:
+  stage: test
+  image: gcr.io/bazel-public/bazel:latest
+  script:
+    - bazel test //...
+```
+
+## CircleCI
+
+```yaml title=".circleci/config.yml"
+version: 2.1
+
+executors:
+  bazel:
+    docker:
+      - image: gcr.io/bazel-public/bazel:latest
+
+jobs:
+  check-and-build:
+    executor: bazel
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - bazel-{{ checksum "MODULE.bazel" }}
+            - bazel-
+      - run:
+          name: Build Bazelle
+          command: bazel build //cmd/bazelle
+      - run:
+          name: Check BUILD files
+          command: ./bazel-bin/cmd/bazelle/bazelle_/bazelle update --check
+      - run:
+          name: Build
+          command: bazel build //...
+      - run:
+          name: Test
+          command: bazel test //...
+      - save_cache:
+          key: bazel-{{ checksum "MODULE.bazel" }}
+          paths:
+            - ~/.cache/bazel
+
+workflows:
+  main:
+    jobs:
+      - check-and-build
+```
+
+## Pre-commit Hook
+
+Add Bazelle to your pre-commit hooks to catch issues before push:
+
+<Tabs>
+  <TabItem label="pre-commit">
+    ```yaml title=".pre-commit-config.yaml"
+    repos:
+      - repo: local
+        hooks:
+          - id: bazelle-check
+            name: Check BUILD files
+            entry: bazelle update --check
+            language: system
+            pass_filenames: false
+            always_run: true
+    ```
+  </TabItem>
+  <TabItem label="lefthook">
+    ```yaml title="lefthook.yml"
+    pre-commit:
+      commands:
+        bazelle-check:
+          run: bazelle update --check
+          fail_text: "BUILD files are out of sync. Run 'bazelle update' to fix."
+    ```
+  </TabItem>
+  <TabItem label="husky">
+    ```bash title=".husky/pre-commit"
+    #!/bin/sh
+    . "$(dirname "$0")/_/husky.sh"
+
+    bazelle update --check || {
+      echo "BUILD files are out of sync. Run 'bazelle update' to fix."
+      exit 1
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## Best Practices
+
+### 1. Run check early in the pipeline
+
+Put the BUILD file check early to fail fast:
+
+```yaml
+steps:
+  - checkout
+  - bazelle update --check  # ← Early failure
+  - bazel build //...
+  - bazel test //...
+```
+
+### 2. Use verbose mode for debugging
+
+When checks fail, verbose output helps diagnose:
+
+```yaml
+- name: Check BUILD files
+  run: bazelle -v 2 update --check
+```
+
+### 3. Cache Bazel outputs
+
+Caching speeds up both Bazelle and Bazel:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: |
+      ~/.cache/bazel
+      .bazelle/
+    key: bazel-${{ hashFiles('MODULE.bazel', '**/*.go', '**/*.kt', '**/*.py') }}
+```
+
+<Aside type="tip">
+The `.bazelle/` directory contains incremental update state. Caching it speeds up subsequent runs.
+</Aside>
+
+### 4. Fail the build on mismatched BUILD files
+
+Don't use `continue-on-error: true` for the check step - you want the pipeline to fail if BUILD files are out of sync.
+
+### 5. Provide clear error messages
+
+When the check fails, tell developers how to fix it:
+
+```yaml
+- name: Check BUILD files
+  run: |
+    if ! bazelle update --check; then
+      echo "::error::BUILD files are out of sync. Run 'bazelle update' locally and commit the changes."
+      exit 1
+    fi
+```
+
+## Incremental Updates in CI
+
+For large monorepos, use incremental mode to speed up CI:
+
+```yaml
+- name: Check BUILD files (incremental)
+  run: |
+    # Restore .bazelle/ state from cache
+    bazelle update --incremental --check
+```
+
+<Aside type="note">
+Incremental mode requires `.bazelle/` state from a previous run. Without it, Bazelle falls back to a full update.
+</Aside>
+
+## Troubleshooting
+
+### Check fails but local run succeeds
+
+Ensure CI uses the same:
+- Bazelle version
+- Bazel version
+- File system (case sensitivity differs between macOS and Linux)
+
+### Build is slow
+
+- Enable Bazel remote caching
+- Use incremental mode with cached `.bazelle/` state
+- Run on a larger CI runner
+
+### See Also
+
+- [Troubleshooting](/bazelle/troubleshooting/) - Common issues and fixes
+- [Configuration](/bazelle/configuration/) - Customize Bazelle behavior

@@ -1,0 +1,103 @@
+---
+title: CLI Reference
+description: Bazelle command-line interface reference
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+Bazelle provides a command-line interface for generating and managing Bazel BUILD files.
+
+## Commands
+
+<CardGrid>
+  <Card title="update" icon="pencil">
+    Generate and update BUILD files for your project.
+    [Learn more →](/bazelle/cli/update/)
+  </Card>
+  <Card title="fix" icon="setting">
+    Fix BUILD files, potentially making breaking changes.
+    [Learn more →](/bazelle/cli/fix/)
+  </Card>
+  <Card title="init" icon="rocket">
+    Initialize a new Bazel project with Gazelle support.
+    [Learn more →](/bazelle/cli/init/)
+  </Card>
+  <Card title="watch" icon="approve-check">
+    Watch for file changes and auto-update BUILD files.
+    [Learn more →](/bazelle/cli/watch/)
+  </Card>
+</CardGrid>
+
+## Global Options
+
+These flags are available for all commands:
+
+```
+-v, --verbosity int    Verbosity level (default 1)
+                       0 = error only
+                       1 = warnings
+                       2 = info
+                       3 = debug
+                       4 = trace
+
+    --log-format       Log format: text (default) or json
+```
+
+## Usage
+
+```bash
+bazelle [command] [flags] [path...]
+```
+
+### Examples
+
+```bash
+# Update BUILD files in current directory
+bazelle update
+
+# Update specific directory
+bazelle update ./src
+
+# Check if BUILD files are up to date (CI)
+bazelle update --check
+
+# Initialize a new project
+bazelle init
+
+# Watch for changes during development
+bazelle watch
+
+# Show version
+bazelle version
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Error or changes needed (with `--check`) |
+
+## Passing Gazelle Flags
+
+Unknown flags are passed through to the underlying Gazelle binary:
+
+```bash
+# Pass Gazelle-specific flags
+bazelle update -go_prefix=github.com/org/repo
+
+# Run in bzlmod mode (passed to gazelle)
+bazelle update -bzlmod
+```
+
+## Getting Help
+
+```bash
+# Show help
+bazelle --help
+bazelle help
+
+# Command-specific help
+bazelle update --help
+bazelle fix --help
+```

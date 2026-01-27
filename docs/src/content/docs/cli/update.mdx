@@ -1,0 +1,147 @@
+---
+title: update
+description: Update BUILD files
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+The `update` command generates and updates BUILD files by running Gazelle with all enabled language extensions.
+
+## Usage
+
+```bash
+bazelle update [flags] [path...]
+```
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--check` | Check if BUILD files are up to date (exit 1 if changes needed) |
+| `--incremental` | Only update directories with changed source files |
+| `--force` | Force full update, ignoring cached state |
+| `--languages` | Only run specific language extensions (comma-separated) |
+| `--verbose` | Show detailed output |
+
+## Examples
+
+### Basic Update
+
+Update all BUILD files in the current workspace:
+
+```bash
+bazelle update
+```
+
+Update a specific directory:
+
+```bash
+bazelle update ./src/mypackage
+```
+
+### CI Integration
+
+Check if BUILD files are up to date without modifying them:
+
+```bash
+bazelle update --check
+```
+
+<Aside type="tip">
+Use `--check` in CI pipelines to ensure BUILD files are committed and up to date.
+</Aside>
+
+Example CI output:
+
+```
+BUILD files need updating (3 file(s) would change)
+Run 'bazelle update' to apply changes
+```
+
+### Incremental Mode
+
+For large codebases, incremental mode only updates directories with changed files:
+
+```bash
+bazelle update --incremental
+```
+
+How it works:
+1. On first run, Bazelle scans all source files and stores their hashes
+2. On subsequent runs, only directories with changed files are updated
+3. State is stored in `.bazelle/` in your workspace root
+
+```bash
+# First run - full update, stores state
+bazelle update --incremental
+
+# Subsequent runs - only changed directories
+bazelle update --incremental
+
+# Force full update despite incremental flag
+bazelle update --incremental --force
+```
+
+### Language Filtering
+
+Run only specific language extensions:
+
+```bash
+# Only Go and Kotlin
+bazelle update --languages go,kotlin
+
+# Only Python
+bazelle update --languages python
+```
+
+### Verbose Output
+
+Show detailed information:
+
+```bash
+bazelle update --verbose
+```
+
+Example verbose output:
+
+```
+Languages: go, kotlin, python, cc
+Processing 847 files in 123 packages...
+Updated: src/auth/BUILD.bazel
+Updated: src/api/BUILD.bazel
+Unchanged: 121 packages
+State saved (847 files tracked)
+```
+
+## Passthrough Flags
+
+Flags not recognized by Bazelle are passed to Gazelle:
+
+```bash
+# Set Go prefix (passed to gazelle)
+bazelle update -go_prefix=github.com/org/repo
+
+# Use bzlmod mode
+bazelle update -bzlmod
+
+# Specify build tags
+bazelle update -build_tags=integration
+```
+
+## Exit Codes
+
+| Code | Mode | Meaning |
+|------|------|---------|
+| 0 | Normal | Update completed successfully |
+| 0 | `--check` | BUILD files are up to date |
+| 1 | `--check` | BUILD files need updating |
+| 1 | Any | Error occurred |
+
+## Comparison with `fix`
+
+| Command | Changes | Use Case |
+|---------|---------|----------|
+| `update` | Additive only | Regular development |
+| `fix` | May delete/rename rules | Major refactoring |
+
+Use `update` for day-to-day development. Use `fix` when you've renamed or deleted source files and need to clean up obsolete BUILD rules.

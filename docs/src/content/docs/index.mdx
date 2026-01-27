@@ -1,0 +1,80 @@
+---
+title: Bazelle
+description: Polyglot Gazelle CLI - a unified BUILD file generator with multiple language extensions
+template: splash
+hero:
+  tagline: A unified BUILD file generator with multiple language extensions baked in
+  actions:
+    - text: Get Started
+      link: /bazelle/getting-started/
+      icon: right-arrow
+    - text: Why Bazelle?
+      link: /bazelle/why-bazelle/
+      icon: information
+      variant: secondary
+    - text: GitHub
+      link: https://github.com/albertocavalcante/bazelle
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, Code } from '@astrojs/starlight/components';
+
+## What is Bazelle?
+
+Bazelle wraps [Bazel Gazelle](https://github.com/bazel-contrib/bazel-gazelle) with multiple language extensions pre-configured, so you don't have to set up complex toolchains and dependencies yourself.
+
+**Two commands. That's it.**
+
+```bash
+bazelle init      # Set up your project
+bazelle update    # Generate all BUILD files
+```
+
+[See the full comparison →](/bazelle/why-bazelle/)
+
+## Features
+
+<CardGrid stagger>
+  <Card title="Multi-Language Support" icon="puzzle">
+    Registered extensions for Go, Proto, Kotlin, Python, C/C++, and Groovy. Enable them via directives.
+  </Card>
+  <Card title="Unified CLI" icon="setting">
+    Single binary wraps Gazelle with all extensions. Use `bazelle init` to bootstrap, `bazelle update` to generate.
+  </Card>
+  <Card title="Incremental Updates" icon="rocket">
+    Smart incremental mode tracks file changes and only updates affected directories for faster builds.
+  </Card>
+  <Card title="Watch Mode" icon="approve-check">
+    Automatically regenerate BUILD files as you code with the built-in file watcher.
+  </Card>
+</CardGrid>
+
+## Guides
+
+<CardGrid>
+  <Card title="Monorepo Setup" icon="document">
+    Set up a multi-language monorepo with Go, Kotlin, and Python.
+
+    [Read guide →](/bazelle/guides/monorepo-setup/)
+  </Card>
+  <Card title="CI/CD Integration" icon="github">
+    Add Bazelle to GitHub Actions, GitLab CI, or your pipeline.
+
+    [Read guide →](/bazelle/guides/ci-integration/)
+  </Card>
+</CardGrid>
+
+## Supported Languages
+
+| Language | Status | Default | Source |
+|----------|--------|---------|--------|
+| Go | ✅ Registered | Enabled | Gazelle core |
+| Proto | ✅ Registered | Enabled | Gazelle core |
+| Kotlin | ✅ Registered | Disabled | Own extension |
+| Python | ✅ Registered | Disabled | Own extension |
+| C/C++ | ✅ Registered | Disabled | gazelle_cc |
+| Groovy | ✅ Registered | Disabled | Own extension |
+| Java | ❌ Not registered | — | Blocked on Bazel 9 |
+| Scala | ❌ Not registered | — | Planned |
+| Rust | ❌ Not registered | — | Blocked on proto deps |

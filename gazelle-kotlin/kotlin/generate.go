@@ -1,5 +1,30 @@
 package kotlin
 
+// Known limitations - TODOs for future implementation:
+//
+// TODO(bazelle): Add kt_jvm_binary generation
+//   - Detect main() functions or @JvmStatic main methods
+//   - Generate kt_jvm_binary rules for runnable applications
+//
+// TODO(bazelle): Support non-Maven directory layouts
+//   - Currently only src/main/kotlin and src/test/kotlin are recognized
+//   - Should support flat layouts and custom source directories
+//
+// TODO(bazelle): Add Maven dependency resolution
+//   - Parse pom.xml or build.gradle.kts for external dependencies
+//   - Map Maven coordinates to Bazel targets via rules_jvm_external
+//
+// TODO(bazelle): Add Kotlin Multiplatform (KMP) support
+//   - Currently JVM-only
+//   - Support commonMain/commonTest, jvmMain/jvmTest, etc.
+//
+// TODO(bazelle): Add Kotlin/JS and Kotlin/Native support
+//   - Generate appropriate rules_kotlin targets for other platforms
+//
+// TODO(bazelle): Add annotation processor (kapt) support
+//   - Detect kapt dependencies and generate kapt rules
+//   - Support common annotation processors (Dagger, Room, etc.)
+
 import (
 	"path/filepath"
 

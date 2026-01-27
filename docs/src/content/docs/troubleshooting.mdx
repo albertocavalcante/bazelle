@@ -1,0 +1,237 @@
+---
+title: Troubleshooting
+description: Solutions to common Bazelle issues
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+This guide helps you diagnose and fix common issues with Bazelle.
+
+## Diagnostic Commands
+
+Before troubleshooting, gather information:
+
+```bash
+# Check Bazelle version
+bazelle version
+
+# Run with verbose logging
+bazelle -v 3 update
+
+# Run with trace logging (very detailed)
+bazelle -v 4 update
+
+# Check what would change without applying
+bazelle fix --dry-run
+```
+
+## Common Issues
+
+### "No languages detected" during init
+
+**Symptom**: `bazelle init` reports no languages found.
+
+**Causes**:
+- No source files in recognized locations
+- Files use unexpected extensions
+
+**Solution**:
+
+<Steps>
+1. Verify source files exist in your project
+2. Check file extensions match expected patterns:
+   - Go: `.go`
+   - Kotlin: `.kt`, `.kts`
+   - Python: `.py`
+   - C/C++: `.c`, `.cc`, `.cpp`, `.h`, `.hpp`
+3. Use `--languages` flag to specify manually:
+   ```bash
+   bazelle init --languages go,kotlin
+   ```
+</Steps>
+
+### Language not generating rules
+
+**Symptom**: Running `bazelle update` doesn't generate rules for your language.
+
+**Causes**:
+- Language not enabled
+- Files not in expected directory structure
+- Directory is excluded
+
+**Solution**:
+
+<Tabs>
+  <TabItem label="Kotlin">
+    ```python
+    # 1. Enable Kotlin in root BUILD.bazel
+    # gazelle:kotlin_enabled true
+    ```
+
+    Kotlin requires Maven-style layout:
+    ```
+    src/main/kotlin/   → kt_jvm_library
+    src/test/kotlin/   → kt_jvm_test
+    ```
+  </TabItem>
+  <TabItem label="Python">
+    ```python
+    # 1. Enable Python in root BUILD.bazel
+    # gazelle:python_enabled true
+    ```
+
+    Python works with any `.py` files in the directory.
+  </TabItem>
+</Tabs>
+
+### BUILD file conflicts
+
+**Symptom**: Error about conflicting rules or duplicate targets.
+
+**Causes**:
+- Multiple extensions trying to generate the same target
+- Manual rules conflict with generated ones
+
+**Solution**:
+
+<Steps>
+1. Use `# gazelle:exclude` to prevent generation in specific directories
+2. Use `# keep` comment to preserve manual rules:
+   ```python
+   # keep
+   my_custom_library(
+       name = "custom",
+       ...
+   )
+   ```
+3. Delete conflicting generated rules and re-run
+</Steps>
+
+### Incremental mode not working
+
+**Symptom**: `--incremental` flag doesn't speed up updates.
+
+**Causes**:
+- No previous state exists
+- State was invalidated
+- Config changes detected
+
+**Solution**:
+
+```bash
+# First run creates state
+bazelle update
+
+# Check state exists
+ls -la .bazelle/
+
+# If missing, run full update first
+bazelle update --force
+```
+
+<Aside type="note">
+Incremental state is stored in `.bazelle/` directory. You can add this to `.gitignore` or commit it for team-wide incremental updates.
+</Aside>
+
+### Watch mode stops responding
+
+**Symptom**: `bazelle watch` stops detecting changes.
+
+**Causes**:
+- File system watcher limit reached
+- Process backgrounded incorrectly
+
+**Solution**:
+
+<Tabs>
+  <TabItem label="macOS">
+    macOS has generous file watcher limits. Try restarting the command.
+  </TabItem>
+  <TabItem label="Linux">
+    Increase inotify limit:
+    ```bash
+    # Temporary
+    sudo sysctl fs.inotify.max_user_watches=524288
+
+    # Permanent (add to /etc/sysctl.conf)
+    fs.inotify.max_user_watches=524288
+    ```
+  </TabItem>
+</Tabs>
+
+### Wrong dependencies generated
+
+**Symptom**: Generated `deps` attribute has incorrect targets.
+
+**Causes**:
+- Import statements not recognized
+- External dependencies not configured
+- Resolver can't find matching target
+
+**Solution**:
+
+<Steps>
+1. Check import statements are valid
+2. For external deps, verify `MODULE.bazel` configuration
+3. Use `# gazelle:resolve` directive to fix specific imports:
+   ```python
+   # gazelle:resolve py my.package //third_party:my_package
+   ```
+4. Run with verbose logging to see resolution:
+   ```bash
+   bazelle -v 3 update
+   ```
+</Steps>
+
+### Pre-commit hooks failing
+
+**Symptom**: `bazelle update --check` fails in CI/pre-commit.
+
+**Causes**:
+- BUILD files are out of sync with source
+- Different Bazelle version in CI
+
+**Solution**:
+
+<Steps>
+1. Run `bazelle update` locally and commit changes
+2. Ensure CI uses the same Bazelle version
+3. Consider adding to pre-commit:
+   ```yaml
+   # .pre-commit-config.yaml
+   - repo: local
+     hooks:
+       - id: bazelle
+         name: Update BUILD files
+         entry: bazelle update
+         language: system
+         pass_filenames: false
+   ```
+</Steps>
+
+## Debug Logging
+
+Enable detailed logging to diagnose issues:
+
+```bash
+# Verbosity levels
+bazelle -v 0 update  # Errors only
+bazelle -v 1 update  # Warnings (default)
+bazelle -v 2 update  # Info
+bazelle -v 3 update  # Debug
+bazelle -v 4 update  # Trace
+
+# JSON output for parsing
+bazelle --log-format json update 2>debug.json
+```
+
+## Getting Help
+
+If you can't resolve an issue:
+
+1. Search [existing issues](https://github.com/albertocavalcante/bazelle/issues)
+2. Create a new issue with:
+   - Bazelle version (`bazelle version`)
+   - Bazel version (`bazel version`)
+   - Minimal reproduction steps
+   - Debug logs (`bazelle -v 3 update`)

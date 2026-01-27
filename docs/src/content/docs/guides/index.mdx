@@ -1,0 +1,58 @@
+---
+title: Guides
+description: Step-by-step tutorials for common Bazelle workflows
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Practical guides to help you get the most out of Bazelle.
+
+## Getting Started
+
+<CardGrid>
+  <LinkCard
+    title="Monorepo Setup"
+    description="Set up a multi-language monorepo with Go, Kotlin, and Python."
+    href="/bazelle/guides/monorepo-setup/"
+  />
+  <LinkCard
+    title="CI/CD Integration"
+    description="Add Bazelle to your CI pipeline with GitHub Actions, GitLab CI, or others."
+    href="/bazelle/guides/ci-integration/"
+  />
+</CardGrid>
+
+## Language-Specific
+
+<CardGrid>
+  <LinkCard
+    title="Go Projects"
+    description="Best practices for Go projects with Bazelle."
+    href="/bazelle/languages/go/"
+  />
+  <LinkCard
+    title="Kotlin Projects"
+    description="Set up Kotlin with Maven-style layouts and rules_kotlin."
+    href="/bazelle/languages/kotlin/"
+  />
+  <LinkCard
+    title="Python Projects"
+    description="Configure Python with custom macros and test frameworks."
+    href="/bazelle/languages/python/"
+  />
+</CardGrid>
+
+## Advanced
+
+<CardGrid>
+  <LinkCard
+    title="Custom Macros"
+    description="Use your own BUILD macros instead of default rules."
+    href="/bazelle/configuration/#can-i-use-custom-macros-instead-of-the-default-rules"
+  />
+  <LinkCard
+    title="Troubleshooting"
+    description="Diagnose and fix common issues."
+    href="/bazelle/troubleshooting/"
+  />
+</CardGrid>

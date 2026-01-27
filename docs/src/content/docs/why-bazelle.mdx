@@ -1,0 +1,180 @@
+---
+title: Why Bazelle?
+description: See how Bazelle simplifies your Bazel + Gazelle setup
+---
+
+import { Aside, Card, CardGrid, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## The Problem
+
+Setting up Gazelle with multiple languages is complex:
+
+```
+❌ Without Bazelle:
+├── Configure rules_go
+├── Configure gazelle
+├── Find and add gazelle_cc
+├── Find and add kotlin gazelle extension (which one?)
+├── Find and add python gazelle extension (rules_python_gazelle_plugin?)
+├── Wire up all extensions in WORKSPACE/MODULE.bazel
+├── Create gazelle targets manually
+├── Figure out directives for each language
+└── Hope they all work together...
+```
+
+## The Solution
+
+Bazelle bundles everything into a single binary:
+
+```
+✅ With Bazelle:
+├── bazelle init
+├── bazelle update
+└── Done.
+```
+
+## Before & After
+
+<Tabs>
+  <TabItem label="Before (Manual Setup)">
+    ```starlark title="MODULE.bazel"
+    # 50+ lines of boilerplate...
+    bazel_dep(name = "rules_go", version = "0.59.0")
+    bazel_dep(name = "gazelle", version = "0.47.0")
+    bazel_dep(name = "rules_kotlin", version = "2.2.2")
+    bazel_dep(name = "rules_python", version = "1.8.0")
+    bazel_dep(name = "rules_python_gazelle_plugin", version = "1.6.3")
+    # ... more deps, more configuration
+
+    # Then wire up extensions...
+    go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
+    go_deps.from_file(go_mod = "//:go.mod")
+    # ... more extension wiring
+    ```
+
+    ```starlark title="BUILD.bazel"
+    load("@gazelle//:def.bzl", "gazelle")
+    load("@rules_python_gazelle_plugin//:def.bzl", "python_gazelle")
+    # ... more loads
+
+    gazelle(
+        name = "gazelle",
+        # ... lots of configuration
+    )
+    ```
+  </TabItem>
+  <TabItem label="After (Bazelle)">
+    ```bash title="Terminal"
+    # That's it. Really.
+    bazelle init
+    bazelle update
+    ```
+
+    ```starlark title="BUILD.bazel (generated)"
+    # gazelle:kotlin_enabled true
+    # gazelle:python_enabled true
+
+    # Bazelle handles the rest
+    ```
+  </TabItem>
+</Tabs>
+
+## Feature Comparison
+
+| Feature | Raw Gazelle | Bazelle |
+|---------|-------------|---------|
+| Go support | ✅ Built-in | ✅ Built-in |
+| Proto support | ✅ Built-in | ✅ Built-in |
+| Kotlin support | ⚠️ Find & configure plugin | ✅ Built-in, enable with directive |
+| Python support | ⚠️ Multiple options, complex setup | ✅ Built-in, enable with directive |
+| C/C++ support | ⚠️ Find gazelle_cc, configure | ✅ Built-in, enable with directive |
+| Incremental updates | ❌ Full scan every time | ✅ Only changed directories |
+| Watch mode | ❌ Not available | ✅ Built-in file watcher |
+| Project init | ❌ Manual setup | ✅ `bazelle init` |
+| CI check mode | ⚠️ Manual diff setup | ✅ `--check` flag |
+| Single binary | ❌ Multiple dependencies | ✅ One binary, all extensions |
+
+## How It Works
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Bazelle CLI                          │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐           │
+│  │  init   │ │ update  │ │   fix   │ │  watch  │           │
+│  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘           │
+│       │           │           │           │                 │
+│       └───────────┴───────────┴───────────┘                 │
+│                         │                                   │
+│              ┌──────────▼──────────┐                        │
+│              │   Gazelle Runner    │                        │
+│              └──────────┬──────────┘                        │
+│                         │                                   │
+│    ┌────────────────────┼────────────────────┐              │
+│    │                    │                    │              │
+│    ▼                    ▼                    ▼              │
+│ ┌──────┐ ┌──────┐ ┌──────────┐ ┌──────────┐ ┌────────┐     │
+│ │  Go  │ │Proto │ │  Kotlin  │ │  Python  │ │  C/C++ │     │
+│ │(core)│ │(core)│ │(gazelle- │ │(gazelle- │ │(gazelle│     │
+│ │      │ │      │ │ kotlin)  │ │ python)  │ │  _cc)  │     │
+│ └──────┘ └──────┘ └──────────┘ └──────────┘ └────────┘     │
+│                                                             │
+│              All extensions pre-configured                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Real-World Example
+
+A typical monorepo with Go, Kotlin, and Python:
+
+```
+my-company/
+├── MODULE.bazel
+├── BUILD.bazel          # gazelle:kotlin_enabled true
+│                        # gazelle:python_enabled true
+├── services/
+│   ├── api/             # Go service
+│   │   ├── main.go
+│   │   └── BUILD.bazel  # ← generated: go_binary
+│   └── auth/            # Kotlin service
+│       └── src/main/kotlin/
+│           └── Auth.kt
+│           └── BUILD.bazel  # ← generated: kt_jvm_library
+├── libs/
+│   └── ml/              # Python library
+│       ├── model.py
+│       └── BUILD.bazel  # ← generated: py_library
+└── proto/
+    └── api.proto
+    └── BUILD.bazel      # ← generated: proto_library
+```
+
+One command updates all BUILD files:
+
+```bash
+bazelle update
+```
+
+## Time Savings
+
+| Task | Manual Setup | With Bazelle |
+|------|--------------|--------------|
+| Initial project setup | Hours | Minutes |
+| Adding a new language | 30+ minutes | 1 directive |
+| Updating BUILD files | Run gazelle, check config | `bazelle update` |
+| CI integration | Custom scripts | `bazelle update --check` |
+| New developer onboarding | Read docs, understand setup | `bazelle init && bazelle update` |
+
+## Get Started
+
+<CardGrid>
+  <Card title="Quick Start" icon="rocket">
+    Get up and running in minutes.
+
+    [Start now →](/bazelle/getting-started/)
+  </Card>
+  <Card title="Installation" icon="download">
+    Build from source or download.
+
+    [Install →](/bazelle/installation/)
+  </Card>
+</CardGrid>

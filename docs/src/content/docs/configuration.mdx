@@ -1,0 +1,177 @@
+---
+title: Configuration
+description: Configure Bazelle and Gazelle behavior
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Bazelle uses Gazelle directives in BUILD files for configuration. This page covers the available configuration options.
+
+## Gazelle Directives
+
+Directives are special comments in BUILD files that control Gazelle behavior. Add them to your root `BUILD.bazel` to apply globally, or to specific `BUILD.bazel` files for directory-specific settings.
+
+### Go Configuration
+
+```python
+# Set the Go module prefix
+# gazelle:prefix github.com/your-org/your-repo
+
+# Use modern naming convention (recommended, bazelle default)
+# gazelle:go_naming_convention import
+
+# For external dependencies
+# gazelle:go_naming_convention_external import
+```
+
+### Kotlin Configuration
+
+```python
+# Enable Kotlin extension (disabled by default)
+# gazelle:kotlin_enabled true
+
+# Parser backend: "heuristic" (default), "treesitter", or "hybrid"
+# gazelle:kotlin_parser_backend heuristic
+
+# Enable/disable FQN scanning (enabled by default when Kotlin is enabled)
+# gazelle:kotlin_fqn_scanning true
+
+# Custom macros (optional)
+# gazelle:kotlin_library_macro kt_jvm_library
+# gazelle:kotlin_test_macro kt_jvm_test
+
+# Visibility for generated targets
+# gazelle:kotlin_visibility //visibility:public
+
+# Custom load path for macros
+# gazelle:kotlin_load //my/macros:defs.bzl
+```
+
+### Python Configuration
+
+```python
+# Enable Python extension (disabled by default)
+# gazelle:python_enabled true
+
+# Custom macros (optional)
+# gazelle:python_library_macro py_library
+# gazelle:python_test_macro py_test
+# gazelle:python_binary_macro py_binary
+
+# Visibility for generated targets
+# gazelle:python_visibility //visibility:public
+
+# Custom load path for macros
+# gazelle:python_load //my/macros:defs.bzl
+
+# Test framework: "pytest" (default) or "unittest"
+# gazelle:python_test_framework pytest
+
+# Custom stdlib modules file (optional)
+# gazelle:python_stdlib_modules_file //:stdlib_modules.txt
+```
+
+### C/C++ Configuration
+
+C/C++ support is provided by the upstream [gazelle_cc](https://github.com/EngFlow/gazelle_cc) extension. See their documentation for available directives.
+
+```python
+# TODO: Document gazelle_cc directives once verified
+```
+
+## Language Defaults
+
+| Language | Enabled by Default | Notes |
+|----------|-------------------|-------|
+| Go | ✅ Yes | Uses `import` naming convention |
+| Proto | ✅ Yes | Built into Gazelle core |
+| Kotlin | ❌ No | Enable with `kotlin_enabled true` |
+| Python | ❌ No | Enable with `python_enabled true` |
+| C/C++ | ❌ No | Via gazelle_cc extension |
+| Groovy | ❌ No | Enable with `groovy_enabled true` |
+
+## Bazelle Defaults
+
+Bazelle applies some opinionated defaults that differ from vanilla Gazelle:
+
+| Setting | Bazelle Default | Gazelle Default |
+|---------|-----------------|-----------------|
+| `go_naming_convention` | `import` | `go_default_library` |
+| `go_naming_convention_external` | `import` | `go_default_library` |
+
+<Aside type="tip">
+The `import` naming convention produces cleaner dependency labels like `@gazelle//language` instead of `@gazelle//language:go_default_library`.
+</Aside>
+
+### Overriding Defaults
+
+You can override Bazelle's defaults using directives in your BUILD files:
+
+```python
+# Use legacy naming convention if needed
+# gazelle:go_naming_convention go_default_library
+```
+
+## Project Structure
+
+Kotlin expects a Maven-style layout:
+
+```
+your-project/
+├── MODULE.bazel
+├── BUILD.bazel
+└── src/
+    ├── main/
+    │   └── kotlin/     # → kt_jvm_library
+    └── test/
+        └── kotlin/     # → kt_jvm_test
+```
+
+Python works with any directory structure - it scans for `.py` files in each directory.
+
+## Excluding Directories
+
+To exclude directories from BUILD file generation:
+
+```python
+# Exclude specific directories
+# gazelle:exclude vendor
+# gazelle:exclude third_party
+# gazelle:exclude testdata
+```
+
+## Logging
+
+Control Bazelle's verbosity with the `-v` flag:
+
+```bash
+# Error only (quiet)
+bazelle -v 0 update
+
+# Warnings (default)
+bazelle -v 1 update
+
+# Info (verbose)
+bazelle -v 2 update
+
+# Debug
+bazelle -v 3 update
+
+# Trace (very verbose)
+bazelle -v 4 update
+```
+
+Or use JSON output for tooling:
+
+```bash
+bazelle --log-format json update
+```
+
+## State Directory
+
+Bazelle stores incremental update state in `.bazelle/` in your workspace root. This directory can be safely deleted or added to `.gitignore`:
+
+```
+# Bazelle state (optional - allows incremental updates across machines if committed)
+.bazelle/
+```

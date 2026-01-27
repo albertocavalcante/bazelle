@@ -1,0 +1,184 @@
+---
+title: init
+description: Initialize a Bazel project with Gazelle support
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+The `init` command initializes a Bazel project with the necessary configuration for Gazelle. It detects languages in your project and sets up the required dependencies.
+
+## Usage
+
+```bash
+bazelle init [flags] [path]
+```
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `-l, --languages` | Languages to configure (auto-detected if not specified) |
+| `--name` | Module name (defaults to directory name) |
+| `--check` | Check if project is properly configured (exit 1 if not) |
+| `--dry-run` | Show what would change without applying |
+
+## What It Does
+
+<Steps>
+
+1. **Detects languages** used in your project by scanning file extensions
+
+2. **Creates MODULE.bazel** with required dependencies:
+   - `bazel_skylib`
+   - `rules_go` and `gazelle` (always included)
+   - Language-specific rules (rules_kotlin, rules_python, etc.)
+
+3. **Creates BUILD.bazel** with a gazelle target
+
+</Steps>
+
+## Examples
+
+### Basic Initialization
+
+Initialize the current directory:
+
+```bash
+bazelle init
+```
+
+Example output:
+
+```
+Languages: go, kotlin, python
+Created /path/to/project/MODULE.bazel
+Created /path/to/project/BUILD.bazel
+
+Next steps:
+  1. Update the gazelle:prefix directive in BUILD.bazel
+  2. Run 'bazelle update' to generate BUILD files
+```
+
+### Specify Languages
+
+Override auto-detection:
+
+```bash
+bazelle init --languages go,kotlin
+```
+
+### Custom Module Name
+
+Set a specific module name:
+
+```bash
+bazelle init --name myproject
+```
+
+### Preview Changes
+
+See what would be created:
+
+```bash
+bazelle init --dry-run
+```
+
+### CI Check
+
+Verify project is properly configured:
+
+```bash
+bazelle init --check
+```
+
+## Generated Files
+
+### MODULE.bazel
+
+```starlark
+module(
+    name = "myproject",
+    version = "0.1.0",
+)
+
+# Core dependencies
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+
+# Language support
+bazel_dep(name = "gazelle", version = "0.47.0")
+bazel_dep(name = "rules_go", version = "0.59.0")
+bazel_dep(name = "rules_kotlin", version = "2.2.2")
+bazel_dep(name = "rules_python", version = "1.8.0")
+bazel_dep(name = "rules_python_gazelle_plugin", version = "1.6.3")
+```
+
+### BUILD.bazel
+
+```starlark
+load("@gazelle//:def.bzl", "gazelle")
+
+# gazelle:prefix github.com/your-org/your-repo
+
+gazelle(
+    name = "gazelle",
+)
+```
+
+<Aside type="note">
+Remember to update the `gazelle:prefix` directive to match your actual import path!
+</Aside>
+
+## Language Detection
+
+`init` detects languages by scanning for common file extensions:
+
+| Extensions | Language |
+|------------|----------|
+| `.go` | Go |
+| `.kt`, `.kts` | Kotlin |
+| `.py` | Python |
+| `.c`, `.cc`, `.cpp`, `.h`, `.hpp` | C/C++ |
+| `.proto` | Protocol Buffers |
+| `.groovy` | Groovy |
+
+## Existing Files
+
+If `MODULE.bazel` or `BUILD.bazel` already exist, `init` will not overwrite them:
+
+```
+MODULE.bazel already exists (skipping)
+BUILD.bazel already exists (skipping)
+```
+
+Use `--check` to verify existing configuration has required dependencies.
+
+## Exit Codes
+
+| Code | Mode | Meaning |
+|------|------|---------|
+| 0 | Normal | Initialization completed |
+| 0 | `--check` | Project is properly configured |
+| 1 | `--check` | Configuration issues found |
+| 1 | Any | Error occurred |
+
+## After Initialization
+
+<Steps>
+
+1. **Edit BUILD.bazel** to set the correct `gazelle:prefix`:
+   ```starlark
+   # gazelle:prefix github.com/your-org/your-repo
+   ```
+
+2. **Run update** to generate BUILD files:
+   ```bash
+   bazelle update
+   ```
+
+3. **Build and test**:
+   ```bash
+   bazel build //...
+   bazel test //...
+   ```
+
+</Steps>

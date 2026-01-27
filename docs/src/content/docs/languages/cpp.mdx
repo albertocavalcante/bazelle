@@ -1,0 +1,86 @@
+---
+title: C/C++
+description: C and C++ language support in Bazelle
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Bazelle includes C/C++ support via the [gazelle_cc](https://github.com/EngFlow/gazelle_cc) extension from EngFlow.
+
+<Aside type="note">
+C/C++ is **disabled by default**. The extension is registered but behavior depends on gazelle_cc configuration. See the [gazelle_cc documentation](https://github.com/EngFlow/gazelle_cc) for directives and usage.
+</Aside>
+
+## Generated Rules
+
+According to gazelle_cc documentation:
+
+| Source Pattern | Generated Rule |
+|---------------|----------------|
+| `*.c`, `*.cc`, `*.cpp` + headers | `cc_library` |
+| Files with `main()` function | `cc_binary` |
+| Test files | `cc_test` |
+
+## Configuration
+
+C/C++ support is provided by the upstream gazelle_cc extension. Refer to the [gazelle_cc repository](https://github.com/EngFlow/gazelle_cc) for:
+
+- Available directives
+- Configuration options
+- Header dependency resolution
+- Build customization
+
+## Dependencies
+
+### Setup
+
+Configure gazelle_cc in your `MODULE.bazel`:
+
+```python title="MODULE.bazel"
+bazel_dep(name = "rules_cc", version = "0.2.16")
+bazel_dep(name = "gazelle_cc", version = "0.5.0")
+```
+
+### Common External Dependencies
+
+```python title="MODULE.bazel"
+# Google Test for testing
+bazel_dep(name = "googletest", version = "1.14.0")
+
+# Abseil for utilities
+bazel_dep(name = "abseil-cpp", version = "20240116.0")
+
+# Protocol Buffers
+bazel_dep(name = "protobuf", version = "33.4")
+```
+
+## Example
+
+A typical C++ project structure:
+
+```
+src/
+├── greeter/
+│   ├── greeter.h
+│   ├── greeter.cc
+│   └── greeter_test.cc
+└── main.cc
+```
+
+<Aside type="caution">
+The exact BUILD output depends on gazelle_cc version and configuration. The examples below are illustrative - consult gazelle_cc documentation for accurate behavior.
+</Aside>
+
+## Limitations
+
+Since C/C++ support comes from an external extension:
+
+- Behavior may differ between gazelle_cc versions
+- Directives and features depend on upstream
+- Complex configurations may need manual adjustment
+- Consult [gazelle_cc issues](https://github.com/EngFlow/gazelle_cc/issues) for known limitations
+
+## Further Reading
+
+- [gazelle_cc GitHub](https://github.com/EngFlow/gazelle_cc)
+- [rules_cc Documentation](https://github.com/bazelbuild/rules_cc)

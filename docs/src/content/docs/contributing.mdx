@@ -1,0 +1,233 @@
+---
+title: Contributing
+description: How to contribute to Bazelle
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Thank you for your interest in contributing to Bazelle! This guide will help you get started.
+
+## Getting Started
+
+<Steps>
+
+1. **Fork the repository**
+
+   Fork [albertocavalcante/bazelle](https://github.com/albertocavalcante/bazelle) on GitHub.
+
+2. **Clone your fork**
+
+   ```bash
+   git clone https://github.com/YOUR_USERNAME/bazelle.git
+   cd bazelle
+   ```
+
+3. **Install dependencies**
+
+   Bazelle uses Bazel for building. Install [Bazelisk](https://github.com/bazelbuild/bazelisk) for automatic Bazel version management:
+
+   ```bash
+   # macOS
+   brew install bazelisk
+
+   # Linux
+   go install github.com/bazelbuild/bazelisk@latest
+   ```
+
+4. **Build and test**
+
+   ```bash
+   bazel build //...
+   bazel test //...
+   ```
+
+</Steps>
+
+## Development Workflow
+
+### Building
+
+```bash
+# Build all targets
+bazel build //...
+
+# Build just the CLI
+bazel build //cmd/bazelle
+
+# Run the CLI
+./bazel-bin/cmd/bazelle/bazelle_/bazelle --help
+```
+
+### Testing
+
+```bash
+# Run all tests
+bazel test //...
+
+# Run tests for a specific package
+bazel test //cmd/bazelle/internal/cli:cli_test
+
+# Run with verbose output
+bazel test --test_output=all //...
+```
+
+### Updating BUILD Files
+
+Use Bazelle itself to manage BUILD files:
+
+```bash
+bazel run //:gazelle
+```
+
+## Project Structure
+
+```
+bazelle/
+├── cmd/bazelle/           # CLI binary
+│   └── internal/
+│       ├── cli/           # Command implementations
+│       ├── detect/        # Language detection
+│       ├── incremental/   # Incremental update tracking
+│       └── watch/         # File watching
+├── gazelle-kotlin/        # Kotlin Gazelle extension
+├── gazelle-python/        # Python Gazelle extension
+├── gazelle-groovy/        # Groovy Gazelle extension
+├── pkg/                   # Shared packages
+│   ├── config/            # Configuration loading
+│   ├── jvm/               # JVM language utilities
+│   ├── registry/          # Language registry
+│   └── treesitter/        # Tree-sitter parsing
+├── internal/              # Internal utilities
+│   └── log/               # Logging package
+└── docs/                  # Documentation (Starlight)
+```
+
+## Making Changes
+
+### Code Style
+
+- Follow standard Go conventions (`gofmt`, `go vet`)
+- Use meaningful variable and function names
+- Add comments for exported functions and types
+- Keep functions focused and small
+
+### Commit Messages
+
+Use clear, descriptive commit messages:
+
+```
+feat: add incremental update support for Python
+
+Add tracking of Python source files in the incremental
+update system. This enables faster updates for large
+Python codebases.
+
+Closes #123
+```
+
+Prefixes:
+- `feat:` - New feature
+- `fix:` - Bug fix
+- `docs:` - Documentation changes
+- `refactor:` - Code refactoring
+- `test:` - Test additions or changes
+- `chore:` - Build, CI, or tooling changes
+
+### Pull Requests
+
+<Steps>
+
+1. Create a feature branch from `main`:
+   ```bash
+   git checkout -b feat/my-feature
+   ```
+
+2. Make your changes and commit
+
+3. Ensure tests pass:
+   ```bash
+   bazel test //...
+   ```
+
+4. Push and create a PR:
+   ```bash
+   git push origin feat/my-feature
+   ```
+
+5. Fill out the PR template with:
+   - Description of changes
+   - Related issues
+   - Test plan
+
+</Steps>
+
+## Adding a New Language Extension
+
+If you want to add support for a new language:
+
+<Steps>
+
+1. **Create the extension directory**
+   ```
+   gazelle-newlang/
+   ├── BUILD.bazel
+   ├── language.go       # Implements language.Language
+   ├── config.go         # Configuration and directives
+   ├── parser.go         # Source file parsing
+   ├── resolver.go       # Dependency resolution
+   └── generate.go       # BUILD rule generation
+   ```
+
+2. **Implement the Gazelle interfaces**
+   - `language.Language`
+   - `config.Configurer`
+   - `resolve.Resolver`
+   - `rule.KindInfo`
+
+3. **Register in the CLI**
+   Update `cmd/bazelle/internal/langs/langs.go`
+
+4. **Add tests**
+   Create `testdata/` directories with example projects
+
+5. **Update documentation**
+   Add a page under `docs/src/content/docs/languages/`
+
+</Steps>
+
+## Documentation
+
+Documentation is built with [Starlight](https://starlight.astro.build/). To work on docs:
+
+```bash
+cd docs
+bun install
+bun run dev
+```
+
+Then open http://localhost:4321/bazelle/
+
+### Adding Pages
+
+1. Create a new `.mdx` file in `docs/src/content/docs/`
+2. Add frontmatter with `title` and `description`
+3. Add to sidebar in `docs/astro.config.mjs`
+
+## Reporting Issues
+
+When reporting bugs:
+
+1. Check existing issues first
+2. Include Bazelle version (`bazelle version`)
+3. Include Bazel version (`bazel version`)
+4. Provide minimal reproduction steps
+5. Include relevant error messages
+
+## Getting Help
+
+- [GitHub Issues](https://github.com/albertocavalcante/bazelle/issues) - Bug reports and feature requests
+- [GitHub Discussions](https://github.com/albertocavalcante/bazelle/discussions) - Questions and ideas
+
+## License
+
+Bazelle is licensed under Apache-2.0. By contributing, you agree that your contributions will be licensed under the same license.

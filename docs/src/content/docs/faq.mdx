@@ -1,0 +1,140 @@
+---
+title: FAQ
+description: Frequently asked questions about Bazelle
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Common questions about Bazelle and how it works.
+
+## General
+
+### What is the difference between Bazelle and Gazelle?
+
+**Gazelle** is Bazel's official BUILD file generator, primarily focused on Go with plugin support for other languages.
+
+**Bazelle** wraps Gazelle with multiple language extensions pre-configured and adds:
+- Unified CLI with `init`, `update`, `fix`, and `watch` commands
+- Incremental update mode for faster builds
+- Custom extensions for Kotlin, Python, and Groovy
+- Opinionated defaults (e.g., `import` naming convention)
+
+### Which languages are supported?
+
+| Language | Status | Enabled by Default |
+|----------|--------|-------------------|
+| Go | Gazelle core | Yes |
+| Proto | Gazelle core | Yes |
+| Kotlin | Own extension | No |
+| Python | Own extension | No |
+| C/C++ | gazelle_cc | No |
+| Groovy | Own extension | No |
+
+### Do I need to install Gazelle separately?
+
+No. Bazelle includes Gazelle and all extensions in a single binary.
+
+### Can I use Bazelle with an existing Gazelle setup?
+
+Yes. Bazelle is compatible with existing Gazelle configurations. Your existing directives will work.
+
+## Configuration
+
+### How do I enable a language?
+
+Add the appropriate directive to your root `BUILD.bazel`:
+
+```python
+# gazelle:kotlin_enabled true
+# gazelle:python_enabled true
+```
+
+### Where should I put directives?
+
+- **Root `BUILD.bazel`**: For project-wide settings
+- **Subdirectory `BUILD.bazel`**: For directory-specific overrides
+
+Directives are inherited by subdirectories.
+
+### How do I exclude directories?
+
+```python
+# gazelle:exclude vendor
+# gazelle:exclude node_modules
+# gazelle:exclude testdata
+```
+
+### Can I use custom macros instead of the default rules?
+
+Yes. Each language supports custom macro configuration:
+
+```python
+# Kotlin
+# gazelle:kotlin_library_macro my_kt_library
+# gazelle:kotlin_load //build:defs.bzl
+
+# Python
+# gazelle:python_library_macro my_py_library
+# gazelle:python_load //build:defs.bzl
+```
+
+## CLI
+
+### What's the difference between `update` and `fix`?
+
+- **`update`**: Safe, additive changes only. Adds new rules, updates sources.
+- **`fix`**: May make breaking changes. Can delete obsolete rules, rename targets.
+
+Use `update` for regular development. Use `fix` when refactoring or cleaning up.
+
+### How does incremental mode work?
+
+Bazelle tracks file changes in `.bazelle/` directory. When you run `bazelle update --incremental`, it only updates directories with changed files.
+
+```bash
+# First run - full update, creates state
+bazelle update
+
+# Subsequent runs - only changed directories
+bazelle update --incremental
+
+# Force full update
+bazelle update --force
+```
+
+### Can I use Bazelle in CI?
+
+Yes. Use the `--check` flag to verify BUILD files are up to date:
+
+```bash
+bazelle update --check
+```
+
+This exits with code 1 if changes are needed, making it ideal for CI.
+
+## Troubleshooting
+
+### Why aren't my files being detected?
+
+Check that:
+1. The language is enabled (e.g., `# gazelle:kotlin_enabled true`)
+2. Files are in the expected location (e.g., `src/main/kotlin` for Kotlin)
+3. The directory isn't excluded
+
+<Aside type="tip">
+Run with verbose logging to debug: `bazelle -v 3 update`
+</Aside>
+
+### Why are dependencies wrong?
+
+Bazelle generates dependencies based on imports in your source files. If dependencies are incorrect:
+
+1. Check that imports are properly declared
+2. Verify the resolver can find the target package
+3. For external deps, ensure they're configured in `MODULE.bazel`
+
+### See Also
+
+- [Troubleshooting](/bazelle/troubleshooting/) for detailed solutions
+- [Configuration](/bazelle/configuration/) for all directives
+- [GitHub Issues](https://github.com/albertocavalcante/bazelle/issues) for bug reports

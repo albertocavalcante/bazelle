@@ -1,0 +1,252 @@
+---
+title: Monorepo Setup
+description: Set up a multi-language monorepo with Bazelle
+---
+
+import { Steps, Tabs, TabItem, Aside, FileTree } from '@astrojs/starlight/components';
+
+This guide walks you through setting up a monorepo with multiple languages managed by Bazelle.
+
+## Overview
+
+By the end of this guide, you'll have:
+- A Bazel monorepo with Go, Kotlin, and Python
+- Automatic BUILD file generation
+- Shared libraries across languages
+
+## Prerequisites
+
+- Bazel 7.0+ (or Bazelisk)
+- Bazelle installed ([Installation guide](/bazelle/installation/))
+
+## Project Structure
+
+We'll create this structure:
+
+<FileTree>
+- my-monorepo/
+  - MODULE.bazel
+  - BUILD.bazel
+  - services/
+    - api/ (Go service)
+      - main.go
+    - auth/ (Kotlin service)
+      - src/main/kotlin/
+        - Auth.kt
+  - libs/
+    - utils/ (Go library)
+      - utils.go
+    - ml/ (Python library)
+      - model.py
+  - proto/
+    - api.proto
+</FileTree>
+
+## Step-by-Step Setup
+
+<Steps>
+
+1. **Create the project directory**
+
+   ```bash
+   mkdir my-monorepo && cd my-monorepo
+   ```
+
+2. **Initialize with Bazelle**
+
+   ```bash
+   bazelle init --name my-monorepo
+   ```
+
+   This creates `MODULE.bazel` and `BUILD.bazel` with detected languages.
+
+3. **Enable additional languages**
+
+   Edit the root `BUILD.bazel`:
+
+   ```python title="BUILD.bazel"
+   # gazelle:prefix github.com/myorg/my-monorepo
+   # gazelle:kotlin_enabled true
+   # gazelle:python_enabled true
+   ```
+
+4. **Create the Go service**
+
+   ```bash
+   mkdir -p services/api
+   ```
+
+   ```go title="services/api/main.go"
+   package main
+
+   import (
+       "fmt"
+       "github.com/myorg/my-monorepo/libs/utils"
+   )
+
+   func main() {
+       fmt.Println(utils.Hello("API"))
+   }
+   ```
+
+5. **Create the Go library**
+
+   ```bash
+   mkdir -p libs/utils
+   ```
+
+   ```go title="libs/utils/utils.go"
+   package utils
+
+   func Hello(name string) string {
+       return "Hello from " + name
+   }
+   ```
+
+6. **Create the Kotlin service**
+
+   ```bash
+   mkdir -p services/auth/src/main/kotlin/com/myorg/auth
+   ```
+
+   ```kotlin title="services/auth/src/main/kotlin/com/myorg/auth/Auth.kt"
+   package com.myorg.auth
+
+   class AuthService {
+       fun authenticate(token: String): Boolean {
+           return token.isNotEmpty()
+       }
+   }
+   ```
+
+7. **Create the Python library**
+
+   ```bash
+   mkdir -p libs/ml
+   ```
+
+   ```python title="libs/ml/model.py"
+   def predict(data: list) -> float:
+       """Simple prediction function."""
+       return sum(data) / len(data) if data else 0.0
+   ```
+
+8. **Generate all BUILD files**
+
+   ```bash
+   bazelle update
+   ```
+
+   Bazelle will generate BUILD files for all directories:
+
+   ```
+   Updating BUILD files...
+   ✓ services/api/BUILD.bazel (go_binary)
+   ✓ services/auth/BUILD.bazel (kt_jvm_library)
+   ✓ libs/utils/BUILD.bazel (go_library)
+   ✓ libs/ml/BUILD.bazel (py_library)
+   ```
+
+9. **Build and test**
+
+   ```bash
+   # Build everything
+   bazel build //...
+
+   # Run the Go service
+   bazel run //services/api
+
+   # Test everything
+   bazel test //...
+   ```
+
+</Steps>
+
+## Generated BUILD Files
+
+Here's what Bazelle generates:
+
+<Tabs>
+  <TabItem label="Go Service">
+    ```starlark title="services/api/BUILD.bazel"
+    load("@rules_go//go:def.bzl", "go_binary")
+
+    go_binary(
+        name = "api",
+        srcs = ["main.go"],
+        deps = ["//libs/utils"],
+        visibility = ["//visibility:public"],
+    )
+    ```
+  </TabItem>
+  <TabItem label="Go Library">
+    ```starlark title="libs/utils/BUILD.bazel"
+    load("@rules_go//go:def.bzl", "go_library")
+
+    go_library(
+        name = "utils",
+        srcs = ["utils.go"],
+        importpath = "github.com/myorg/my-monorepo/libs/utils",
+        visibility = ["//visibility:public"],
+    )
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```starlark title="services/auth/BUILD.bazel"
+    load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+    kt_jvm_library(
+        name = "auth",
+        srcs = glob(["src/main/kotlin/**/*.kt"]),
+        visibility = ["//visibility:public"],
+    )
+    ```
+  </TabItem>
+  <TabItem label="Python">
+    ```starlark title="libs/ml/BUILD.bazel"
+    load("@rules_python//python:defs.bzl", "py_library")
+
+    py_library(
+        name = "ml",
+        srcs = ["model.py"],
+        visibility = ["//visibility:public"],
+    )
+    ```
+  </TabItem>
+</Tabs>
+
+## Development Workflow
+
+### Watch Mode
+
+During development, use watch mode to auto-update BUILD files:
+
+```bash
+bazelle watch
+```
+
+Now when you add or modify source files, BUILD files update automatically.
+
+### Adding Dependencies
+
+When you add a new import:
+
+1. Add the import to your source file
+2. Run `bazelle update` (or let watch mode handle it)
+3. Bazelle detects the dependency and adds it to `deps`
+
+### Keeping BUILD Files in Sync
+
+Before committing, verify BUILD files are up to date:
+
+```bash
+bazelle update --check
+```
+
+Add this to your pre-commit hook or CI pipeline.
+
+## Next Steps
+
+- [CI/CD Integration](/bazelle/guides/ci-integration/) - Add to your pipeline
+- [Configuration](/bazelle/configuration/) - Customize behavior with directives
+- [FAQ](/bazelle/faq/) - Common questions answered

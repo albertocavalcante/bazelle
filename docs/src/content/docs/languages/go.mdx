@@ -1,0 +1,139 @@
+---
+title: Go
+description: Go language support in Bazelle
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Bazelle includes built-in support for Go through Gazelle's core language extension. It automatically generates `go_library`, `go_binary`, and `go_test` rules.
+
+<Aside type="tip">
+Go is **enabled by default** - no configuration needed to start generating Go BUILD files.
+</Aside>
+
+## Generated Rules
+
+| Source Pattern | Generated Rule |
+|---------------|----------------|
+| `*.go` files | `go_library` |
+| `package main` | `go_binary` |
+| `*_test.go` | `go_test` |
+
+## Configuration
+
+### Module Prefix
+
+Set your Go module path in the root BUILD file:
+
+```python
+# gazelle:prefix github.com/your-org/your-repo
+```
+
+<Aside type="note">
+This should match the `module` line in your `go.mod` file.
+</Aside>
+
+### Naming Convention
+
+Bazelle uses the modern `import` naming convention by default:
+
+```python
+# Bazelle default (recommended)
+# gazelle:go_naming_convention import
+
+# Results in: //pkg/foo (target name = directory name)
+```
+
+The legacy convention produces verbose names:
+
+```python
+# Legacy naming
+# gazelle:go_naming_convention go_default_library
+
+# Results in: //pkg/foo:go_default_library
+```
+
+### External Dependencies
+
+Configure how external dependencies are named:
+
+```python
+# Modern naming for external deps (bazelle default)
+# gazelle:go_naming_convention_external import
+
+# Results in: @gazelle//language
+```
+
+## Example
+
+Given this Go source file:
+
+```go title="pkg/greeter/greeter.go"
+package greeter
+
+import "fmt"
+
+func Hello(name string) string {
+    return fmt.Sprintf("Hello, %s!", name)
+}
+```
+
+Bazelle generates:
+
+```python title="pkg/greeter/BUILD.bazel"
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "greeter",
+    srcs = ["greeter.go"],
+    importpath = "github.com/your-org/your-repo/pkg/greeter",
+    visibility = ["//visibility:public"],
+)
+```
+
+## Dependencies
+
+Gazelle automatically resolves:
+
+- **Standard library imports**: No `deps` needed
+- **Internal imports**: Resolved to `//path/to:target`
+- **External imports**: Resolved via `go.mod` to `@module//path`
+
+### Managing External Dependencies
+
+Use `go.mod` with rules_go's bzlmod support:
+
+```python title="MODULE.bazel"
+bazel_dep(name = "rules_go", version = "0.59.0")
+bazel_dep(name = "gazelle", version = "0.47.0")
+
+go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
+go_deps.from_file(go_mod = "//:go.mod")
+use_repo(go_deps, "com_github_...")
+```
+
+## Common Directives
+
+These are standard Gazelle directives (see [Gazelle documentation](https://github.com/bazel-contrib/bazel-gazelle) for full details):
+
+```python
+# Set import path prefix
+# gazelle:prefix github.com/your-org/your-repo
+
+# Exclude test files from library
+# gazelle:build_tags !integration
+
+# Map import path to target
+# gazelle:resolve go github.com/foo/bar //third_party/foo:bar
+
+# Exclude directories
+# gazelle:exclude vendor
+```
+
+## Proto Support
+
+Go proto libraries are handled by Gazelle's proto extension. When both `.proto` and Go code are present, appropriate `go_proto_library` rules are generated.
+
+<Aside type="note">
+Proto behavior is provided by upstream Gazelle. See [Gazelle proto documentation](https://github.com/bazel-contrib/bazel-gazelle#proto) for details.
+</Aside>

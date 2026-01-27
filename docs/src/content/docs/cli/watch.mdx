@@ -1,0 +1,175 @@
+---
+title: watch
+description: Watch for file changes and auto-update BUILD files
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `watch` command monitors your workspace for source file changes and automatically updates BUILD files when changes are detected. This provides a seamless development experience where BUILD files stay in sync with your code.
+
+## Usage
+
+```bash
+bazelle watch [flags] [path]
+```
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--debounce` | Debounce window in milliseconds (default: 500) |
+| `--languages` | Only watch specific languages (comma-separated) |
+| `--verbose` | Show file-level changes |
+| `--json` | Stream JSON events (for tooling integration) |
+| `--no-color` | Disable colored output |
+
+## Examples
+
+### Basic Watch
+
+Start watching the current workspace:
+
+```bash
+bazelle watch
+```
+
+Example output:
+
+```
+bazelle: watching 1,247 files in /path/to/workspace
+bazelle: languages: go, kotlin, python
+bazelle: ready
+
+[14:32:15] ~ src/auth/login.kt
+[14:32:15] updating //src/auth:all...
+[14:32:16] ✓ src/auth/BUILD.bazel updated
+
+[14:35:42] + src/api/handler.go
+[14:35:42] updating //src/api:all...
+[14:35:43] ✓ src/api/BUILD.bazel updated
+```
+
+Press `Ctrl+C` to stop watching.
+
+### Watch Specific Directory
+
+Watch only a subdirectory:
+
+```bash
+bazelle watch ./src
+```
+
+### Filter Languages
+
+Only watch specific languages:
+
+```bash
+bazelle watch --languages go,kotlin
+```
+
+### Verbose Mode
+
+Show detailed file-level changes:
+
+```bash
+bazelle watch --verbose
+```
+
+### JSON Output
+
+For integration with editors and tools:
+
+```bash
+bazelle watch --json
+```
+
+Example JSON events:
+
+```json
+{"type":"ready","files":1247,"languages":["go","kotlin","python"]}
+{"type":"change","file":"src/auth/login.kt","action":"modified"}
+{"type":"update","target":"//src/auth:all","status":"started"}
+{"type":"update","target":"//src/auth:all","status":"completed","file":"src/auth/BUILD.bazel"}
+```
+
+### Debounce Configuration
+
+Adjust the debounce window (useful for slow file systems or rapid edits):
+
+```bash
+# Longer debounce for slower systems
+bazelle watch --debounce 1000
+
+# Shorter debounce for faster feedback
+bazelle watch --debounce 200
+```
+
+## How It Works
+
+1. **Startup**: Scans the workspace and registers file watchers for source files
+2. **Detection**: Uses OS file system events (fsnotify) to detect changes
+3. **Debouncing**: Groups rapid changes within the debounce window
+4. **Update**: Runs Gazelle on affected directories
+5. **Output**: Reports which BUILD files were updated
+
+## Ignored Files
+
+Watch automatically ignores:
+
+- `.git/` directory
+- `bazel-*` directories (Bazel output)
+- `.bazelle/` state directory
+- Files matching `.gitignore` patterns
+- Binary files and build artifacts
+
+## Integration with Editors
+
+### VS Code
+
+Add to your tasks.json:
+
+```json
+{
+  "label": "Bazelle Watch",
+  "type": "shell",
+  "command": "bazelle watch --json",
+  "isBackground": true,
+  "problemMatcher": []
+}
+```
+
+### Terminal Multiplexer
+
+Run watch in a split pane while developing:
+
+```bash
+# tmux example
+tmux split-window -h 'bazelle watch'
+```
+
+## Graceful Shutdown
+
+Watch handles signals gracefully:
+
+- `Ctrl+C` (SIGINT): Clean shutdown
+- `SIGTERM`: Clean shutdown
+- `SIGHUP`: Clean shutdown (terminal closed)
+
+<Aside type="tip">
+Watch mode is ideal for local development. For CI, use `bazelle update --check` instead.
+</Aside>
+
+## Performance
+
+Watch is optimized for large codebases:
+
+- Only processes directories with actual changes
+- Uses efficient file system watching (fsnotify)
+- Debounces rapid changes to avoid redundant updates
+- Filters irrelevant files at the OS level
+
+## Limitations
+
+- Does not track changes made by external tools that bypass file system events
+- Some network file systems may not support file watching
+- Very large workspaces (100k+ files) may need increased debounce times

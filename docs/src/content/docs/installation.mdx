@@ -1,0 +1,94 @@
+---
+title: Installation
+description: How to install and set up Bazelle
+---
+
+import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+
+## Installation Methods
+
+### From Source (Recommended)
+
+Build Bazelle directly from the source repository:
+
+<Steps>
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/albertocavalcante/bazelle.git
+   cd bazelle
+   ```
+
+2. **Build with Bazel**
+
+   ```bash
+   bazel build //cmd/bazelle
+   ```
+
+3. **Run or install**
+
+   <Tabs>
+     <TabItem label="Run directly">
+       ```bash
+       ./bazel-bin/cmd/bazelle/bazelle_/bazelle --help
+       ```
+     </TabItem>
+     <TabItem label="Copy to PATH">
+       ```bash
+       cp ./bazel-bin/cmd/bazelle/bazelle_/bazelle /usr/local/bin/bazelle
+       ```
+     </TabItem>
+   </Tabs>
+
+</Steps>
+
+### Using Bazel Run
+
+You can run Bazelle directly through Bazel without installing it:
+
+```bash
+# From the bazelle repository
+bazel run //cmd/bazelle -- update /path/to/your/project
+
+# Or use the wrapper target
+bazel run //:gazelle
+```
+
+## Verifying Installation
+
+Check that Bazelle is installed correctly:
+
+```bash
+bazelle version
+```
+
+You should see output like:
+
+```
+bazelle v0.1.0 (abc1234)
+```
+
+## Dependencies
+
+Bazelle is a self-contained Go binary with all language extensions built-in. The only external requirements are:
+
+- **Bazel 7.0+**: Required for running builds (Bazelisk recommended)
+- **Go 1.21+**: Only needed if building from source
+
+## Project Setup
+
+After installing Bazelle, you can set up a new project:
+
+```bash
+# Navigate to your project
+cd /path/to/your/project
+
+# Initialize (creates MODULE.bazel and BUILD.bazel if needed)
+bazelle init
+
+# Generate BUILD files
+bazelle update
+```
+
+See [Configuration](/bazelle/configuration/) for details on customizing Bazelle behavior.

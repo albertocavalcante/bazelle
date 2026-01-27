@@ -1,0 +1,170 @@
+---
+title: Kotlin
+description: Kotlin language support in Bazelle
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Bazelle includes a custom Kotlin extension (gazelle-kotlin) that generates `kt_jvm_library` and `kt_jvm_test` rules compatible with rules_kotlin.
+
+<Aside type="note">
+Kotlin is **disabled by default**. Enable it with `# gazelle:kotlin_enabled true` in your BUILD file.
+</Aside>
+
+## Generated Rules
+
+| Source Location | Generated Rule |
+|-----------------|----------------|
+| `src/main/kotlin/**/*.kt` | `kt_jvm_library` |
+| `src/main/kotlin/**/*.kts` | `kt_jvm_library` |
+| `src/test/kotlin/**/*.kt` | `kt_jvm_test` |
+| `src/test/kotlin/**/*.kts` | `kt_jvm_test` |
+
+<Aside type="caution">
+Kotlin requires a **Maven-style directory layout** (`src/main/kotlin`, `src/test/kotlin`). Other layouts are not currently supported.
+</Aside>
+
+## Configuration
+
+### Enable Kotlin
+
+```python
+# In your root BUILD.bazel
+# gazelle:kotlin_enabled true
+```
+
+### Available Directives
+
+```python
+# Enable/disable Kotlin extension
+# gazelle:kotlin_enabled true
+
+# Parser backend: "heuristic" (default), "treesitter", or "hybrid"
+# gazelle:kotlin_parser_backend heuristic
+
+# Enable/disable FQN scanning (enabled by default)
+# gazelle:kotlin_fqn_scanning true
+
+# Custom macros (optional)
+# gazelle:kotlin_library_macro kt_jvm_library
+# gazelle:kotlin_test_macro kt_jvm_test
+
+# Visibility for generated targets
+# gazelle:kotlin_visibility //visibility:public
+
+# Custom load path for macros
+# gazelle:kotlin_load //my/macros:defs.bzl
+```
+
+## Project Structure
+
+Kotlin requires the Maven-style layout:
+
+```
+your-project/
+├── BUILD.bazel           # With kotlin_enabled directive
+└── src/
+    ├── main/
+    │   └── kotlin/
+    │       └── com/
+    │           └── example/
+    │               └── Greeter.kt    # → kt_jvm_library
+    └── test/
+        └── kotlin/
+            └── com/
+                └── example/
+                    └── GreeterTest.kt # → kt_jvm_test
+```
+
+## Example
+
+Given this Kotlin source file:
+
+```kotlin title="src/main/kotlin/com/example/Greeter.kt"
+package com.example
+
+class Greeter {
+    fun hello(name: String): String {
+        return "Hello, $name!"
+    }
+}
+```
+
+Bazelle generates:
+
+```python title="src/main/kotlin/com/example/BUILD.bazel"
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+kt_jvm_library(
+    name = "example",
+    srcs = glob(["**/*.kt", "**/*.kts"]),
+    visibility = ["//visibility:public"],
+)
+```
+
+## Test Generation
+
+Test sources in `src/test/kotlin` generate `kt_jvm_test` rules:
+
+```kotlin title="src/test/kotlin/com/example/GreeterTest.kt"
+package com.example
+
+import org.junit.Test
+import kotlin.test.assertEquals
+
+class GreeterTest {
+    @Test
+    fun testHello() {
+        val greeter = Greeter()
+        assertEquals("Hello, World!", greeter.hello("World"))
+    }
+}
+```
+
+Generates:
+
+```python title="src/test/kotlin/com/example/BUILD.bazel"
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "example_test",
+    srcs = glob(["**/*.kt", "**/*.kts"]),
+    deps = ["//src/main/kotlin/com/example"],
+)
+```
+
+## Parser Backends
+
+The Kotlin extension supports multiple parsing strategies:
+
+| Backend | Description |
+|---------|-------------|
+| `heuristic` | Fast regex-based parsing (default) |
+| `treesitter` | Full AST parsing via tree-sitter |
+| `hybrid` | Heuristic with tree-sitter fallback |
+
+```python
+# Use tree-sitter for more accurate parsing
+# gazelle:kotlin_parser_backend treesitter
+```
+
+## Dependencies
+
+### rules_kotlin Setup
+
+Configure rules_kotlin in your `MODULE.bazel`:
+
+```python title="MODULE.bazel"
+bazel_dep(name = "rules_kotlin", version = "2.2.2")
+```
+
+## Limitations
+
+Current limitations of the Kotlin extension:
+
+- **Maven-style layout required** - Only `src/main/kotlin` and `src/test/kotlin` are recognized
+- **No `kt_jvm_binary` generation** - Binaries must be manually configured
+- **No automatic Maven dependency resolution** - External deps need manual configuration
+- **Multiplatform Kotlin (KMP) not supported** - JVM only
+- **Kotlin/JS and Kotlin/Native not supported**
+- **Annotation processors (kapt) require manual configuration**

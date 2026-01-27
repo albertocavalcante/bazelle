@@ -68,6 +68,14 @@ pre-commit:
           actionlint {staged_files}
         fi
 
+    workflow-pin:
+      glob: '.github/workflows/*.{yml,yaml}'
+      run: |
+        if command -v pinact &> /dev/null; then
+          pinact run --verify -c tools/lint/pinact.yaml
+        fi
+      fail_text: "Run 'pinact run -u -c tools/lint/pinact.yaml' to pin action versions"
+
     shell-lint:
       glob: '**/*.sh'
       run: shellcheck {staged_files}

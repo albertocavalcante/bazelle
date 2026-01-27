@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             name: linux-amd64
           - os: macos-14
             name: darwin-arm64
@@ -27,8 +27,9 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Setup Bazelisk
@@ -45,15 +46,16 @@ jobs:
         run: bazel test //...
 
   buildifier:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     name: Lint (Buildifier)
     timeout-minutes: 10
     permissions:
       contents: read
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Setup Bazelisk
@@ -69,20 +71,22 @@ jobs:
         continue-on-error: true
 
   actionlint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     name: Lint (Actions)
     timeout-minutes: 5
     permissions:
       contents: read
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Run actionlint
-        uses: reviewdog/action-actionlint@83e4ed25b168066ad8f62f5afbb29ebd8641d982  # v1.69.1
+        uses: reviewdog/action-actionlint@83e4ed25b168066ad8f62f5afbb29ebd8641d982 # v1.69.1
         with:
           fail_level: error
           filter_mode: nofilter
           reporter: github-pr-review
+
