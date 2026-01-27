@@ -1,0 +1,72 @@
+# Supply Chain Metadata and SBOM Generation for Bazelle
+#
+# This package provides software supply chain security metadata using
+# bazel-contrib/supply-chain (successor to bazelbuild/rules_license).
+#
+# References:
+#   - https://github.com/bazel-contrib/supply-chain
+#   - https://github.com/package-url/purl-spec (Package URL spec)
+#   - https://spdx.dev/ (SPDX SBOM format)
+#   - https://cyclonedx.org/ (CycloneDX SBOM format, coming in PR #143)
+#
+# Usage:
+#   bazel build //supply_chain:bazelle_sbom       # Generate SBOM config
+#   bazel build //supply_chain:bazelle_sbom_spdx  # Generate SPDX SBOM
+
+load("@package_metadata//purl:purl.bzl", "purl")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@supply_chain_tools//sbom:sbom.bzl", "sbom")
+load("@supply_chain_tools//sbom:spdx.bzl", "spdx")
+
+package(default_visibility = ["//visibility:public"])
+
+# ==============================================================================
+# Package Metadata
+# ==============================================================================
+# Declares identity and metadata for the bazelle module.
+# PURL format: pkg:bazel/<module_name>@<version>
+#
+# This target should be referenced by default_package_metadata in REPO.bazel
+# to automatically annotate all targets in this repository.
+
+package_metadata(
+    name = "package_metadata",
+    # PURL (Package URL) identifies this module in the Bazel ecosystem
+    # See: https://github.com/package-url/purl-spec
+    purl = purl.bazel(
+        name = "bazelle",  # module_name() not available in BUILD files
+        version = "0.1.0",  # Keep in sync with MODULE.bazel version
+    ),
+    # TODO: Add license attribute once LICENSE file is created
+    # attributes = [":license"],
+)
+
+# ==============================================================================
+# SBOM Generation
+# ==============================================================================
+# Software Bill of Materials (SBOM) for the bazelle binary.
+# Gathers package_metadata from all transitive dependencies.
+
+# Intermediate target: collects metadata into JSON config
+sbom(
+    name = "bazelle_sbom",
+    target = "//:bazelle",
+)
+
+# Final SBOM in SPDX format (JSON)
+# SPDX is an ISO standard (ISO/IEC 5962:2021) for SBOMs
+spdx(
+    name = "bazelle_sbom_spdx",
+    format = "json",  # Also supports: "yaml", "tag-value"
+    out = "bazelle.spdx.json",
+    sbom = ":bazelle_sbom",
+)
+
+# TODO: Add CycloneDX output when PR #143 is merged
+# https://github.com/bazel-contrib/supply-chain/pull/143
+# cdx(
+#     name = "bazelle_sbom_cdx",
+#     format = "json",
+#     out = "bazelle.cdx.json",
+#     sbom = ":bazelle_sbom",
+# )

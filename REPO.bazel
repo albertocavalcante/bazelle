@@ -1,0 +1,18 @@
+# Repository-wide Bazel configuration for Bazelle
+#
+# This file configures repository-wide defaults that apply to all packages.
+# See: https://bazel.build/external/overview#repo.bazel
+
+# ==============================================================================
+# Supply Chain Metadata
+# ==============================================================================
+# Automatically annotate all targets with package metadata for SBOM generation.
+# This enables transitive metadata collection via supply_chain_tools aspects.
+#
+# References:
+#   - https://github.com/bazel-contrib/supply-chain
+#   - https://bazel.build/reference/be/functions#package.default_package_metadata
+
+repo(
+    default_package_metadata = ["//supply_chain:package_metadata"],
+)
