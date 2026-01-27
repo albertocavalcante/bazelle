@@ -10,8 +10,8 @@
 #   - https://cyclonedx.org/ (CycloneDX SBOM format, coming in PR #143)
 #
 # Usage:
-#   bazel build //supply_chain:bazelle_sbom       # Generate SBOM config
-#   bazel build //supply_chain:bazelle_sbom_spdx  # Generate SPDX SBOM
+#   bazel build //tools/supply_chain:bazelle_sbom       # Generate SBOM config
+#   bazel build //tools/supply_chain:bazelle_sbom_spdx  # Generate SPDX SBOM
 
 load("@package_metadata//purl:purl.bzl", "purl")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
@@ -57,8 +57,8 @@ sbom(
 # SPDX is an ISO standard (ISO/IEC 5962:2021) for SBOMs
 spdx(
     name = "bazelle_sbom_spdx",
-    format = "json",  # Also supports: "yaml", "tag-value"
     out = "bazelle.spdx.json",
+    format = "json",  # Also supports: "yaml", "tag-value"
     sbom = ":bazelle_sbom",
 )
 

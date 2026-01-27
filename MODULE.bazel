@@ -62,7 +62,7 @@ http_file(
 #   supply_chain_tools (0.0.1) - Gathering aspect + SBOM rules
 #   supply-chain-go - SPDX generator (CycloneDX coming: PR #143)
 #
-# Usage: bazel build //supply_chain:bazelle_sbom_spdx
+# Usage: bazel build //tools/supply_chain:bazelle_sbom_spdx
 bazel_dep(name = "package_metadata", version = "0.0.7")
 bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 

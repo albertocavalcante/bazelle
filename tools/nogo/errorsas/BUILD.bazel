@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "errorsas",
@@ -6,4 +6,11 @@ go_library(
     importpath = "github.com/albertocavalcante/bazelle/tools/nogo/errorsas",
     visibility = ["//visibility:public"],
     deps = ["@org_golang_x_tools//go/analysis/passes/errorsas"],
+)
+
+go_test(
+    name = "errorsas_test",
+    srcs = ["errorsas_test.go"],
+    embed = [":errorsas"],
+    deps = ["@org_golang_x_tools//go/analysis/analysistest"],
 )

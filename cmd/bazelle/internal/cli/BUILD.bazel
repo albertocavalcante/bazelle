@@ -26,6 +26,14 @@ go_library(
 
 go_test(
     name = "cli_test",
-    srcs = ["init_test.go"],
+    srcs = [
+        "cli_test.go",
+        "commands_test.go",
+        "init_test.go",
+    ],
     embed = [":cli"],
+    deps = [
+        "@bazel_gazelle//language",
+        "@com_github_spf13_cobra//:cobra",
+    ],
 )

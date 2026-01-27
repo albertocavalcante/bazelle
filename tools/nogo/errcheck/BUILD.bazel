@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "errcheck",
@@ -6,4 +6,11 @@ go_library(
     importpath = "github.com/albertocavalcante/bazelle/tools/nogo/errcheck",
     visibility = ["//visibility:public"],
     deps = ["@com_github_kisielk_errcheck//errcheck"],
+)
+
+go_test(
+    name = "errcheck_test",
+    srcs = ["errcheck_test.go"],
+    embed = [":errcheck"],
+    deps = ["@org_golang_x_tools//go/analysis/analysistest"],
 )

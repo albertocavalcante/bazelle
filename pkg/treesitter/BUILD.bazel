@@ -17,7 +17,6 @@ go_library(
         "registry.go",
         "types.go",
     ],
-    cgo = True,
     importpath = "github.com/albertocavalcante/bazelle/pkg/treesitter",
     visibility = ["//visibility:public"],
     deps = [

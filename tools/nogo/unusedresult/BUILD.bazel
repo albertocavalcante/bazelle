@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "unusedresult",
@@ -6,4 +6,11 @@ go_library(
     importpath = "github.com/albertocavalcante/bazelle/tools/nogo/unusedresult",
     visibility = ["//visibility:public"],
     deps = ["@org_golang_x_tools//go/analysis/passes/unusedresult"],
+)
+
+go_test(
+    name = "unusedresult_test",
+    srcs = ["unusedresult_test.go"],
+    embed = [":unusedresult"],
+    deps = ["@org_golang_x_tools//go/analysis/analysistest"],
 )

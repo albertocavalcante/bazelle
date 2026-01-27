@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "copylock",
@@ -6,4 +6,11 @@ go_library(
     importpath = "github.com/albertocavalcante/bazelle/tools/nogo/copylock",
     visibility = ["//visibility:public"],
     deps = ["@org_golang_x_tools//go/analysis/passes/copylock"],
+)
+
+go_test(
+    name = "copylock_test",
+    srcs = ["copylock_test.go"],
+    embed = [":copylock"],
+    deps = ["@org_golang_x_tools//go/analysis/analysistest"],
 )

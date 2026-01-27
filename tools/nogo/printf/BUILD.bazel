@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "printf",
@@ -6,4 +6,11 @@ go_library(
     importpath = "github.com/albertocavalcante/bazelle/tools/nogo/printf",
     visibility = ["//visibility:public"],
     deps = ["@org_golang_x_tools//go/analysis/passes/printf"],
+)
+
+go_test(
+    name = "printf_test",
+    srcs = ["printf_test.go"],
+    embed = [":printf"],
+    deps = ["@org_golang_x_tools//go/analysis/analysistest"],
 )

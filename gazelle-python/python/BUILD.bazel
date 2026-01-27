@@ -22,21 +22,29 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//internal/log",
-        "@bazel_gazelle//config:go_default_library",
-        "@bazel_gazelle//label:go_default_library",
-        "@bazel_gazelle//language:go_default_library",
-        "@bazel_gazelle//repo:go_default_library",
-        "@bazel_gazelle//resolve:go_default_library",
-        "@bazel_gazelle//rule:go_default_library",
+        "@bazel_gazelle//config",
+        "@bazel_gazelle//label",
+        "@bazel_gazelle//language",
+        "@bazel_gazelle//repo",
+        "@bazel_gazelle//resolve",
+        "@bazel_gazelle//rule",
     ],
 )
 
 go_test(
     name = "python_test",
     srcs = [
+        "config_test.go",
+        "generate_test.go",
+        "lang_test.go",
         "parser_test.go",
         "pip_test.go",
         "stdlib_test.go",
     ],
     embed = [":python"],
+    deps = [
+        "@bazel_gazelle//config",
+        "@bazel_gazelle//language",
+        "@bazel_gazelle//rule",
+    ],
 )

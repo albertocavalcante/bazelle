@@ -14,5 +14,5 @@
 #   - https://bazel.build/reference/be/functions#package.default_package_metadata
 
 repo(
-    default_package_metadata = ["//supply_chain:package_metadata"],
+    default_package_metadata = ["//tools/supply_chain:package_metadata"],
 )
