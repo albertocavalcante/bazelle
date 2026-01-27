@@ -1,0 +1,9 @@
+# Bazelisk Configuration
+# See: https://github.com/bazelbuild/bazelisk#configuration
+
+# Cache Bazel downloads in platform-appropriate locations
+# This keeps Bazel versions alongside our cached Bazelisk binary
+BAZELISK_HOME_DARWIN=~/Library/Caches/bazelle/bazel
+BAZELISK_HOME_LINUX=~/.cache/bazelle/bazel
+BAZELISK_HOME_WINDOWS=%LOCALAPPDATA%\bazelle\bazel
+
