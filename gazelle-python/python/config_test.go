@@ -149,6 +149,9 @@ func TestKnownDirectives(t *testing.T) {
 		"python_load",
 		"python_test_framework",
 		"python_stdlib_modules_file",
+		"python_requirements_file",
+		"python_pip_repository",
+		"python_namespace_packages",
 	}
 
 	if len(directives) != len(expected) {

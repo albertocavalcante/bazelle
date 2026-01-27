@@ -12,5 +12,6 @@ go_test(
     name = "structtag_test",
     srcs = ["structtag_test.go"],
     embed = [":structtag"],
+    tags = ["manual"],  # requires go tool in PATH, not available in Bazel sandbox
     deps = ["@org_golang_x_tools//go/analysis/analysistest"],
 )

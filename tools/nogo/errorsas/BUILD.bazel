@@ -12,5 +12,6 @@ go_test(
     name = "errorsas_test",
     srcs = ["errorsas_test.go"],
     embed = [":errorsas"],
+    tags = ["manual"],  # requires go tool in PATH, not available in Bazel sandbox
     deps = ["@org_golang_x_tools//go/analysis/analysistest"],
 )

@@ -12,5 +12,6 @@ go_test(
     name = "printf_test",
     srcs = ["printf_test.go"],
     embed = [":printf"],
+    tags = ["manual"],  # requires go tool in PATH, not available in Bazel sandbox
     deps = ["@org_golang_x_tools//go/analysis/analysistest"],
 )

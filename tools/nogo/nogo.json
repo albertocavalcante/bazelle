@@ -1,21 +1,24 @@
 {
   "_base": {
-    "description": "Skip external dependency sources",
+    "description": "Skip external dependency sources and testdata",
     "exclude_files": {
-      "(^|/)external/": "exclude third-party code from nogo"
+      "(^|/)external/": "exclude third-party code from nogo",
+      "(^|/)testdata/": "exclude analyzer testdata with intentional bugs"
     }
   },
   "copylock": {},
   "errcheck": {
     "exclude_files": {
-      "_test\\.go$": "test files often ignore errors intentionally"
+      "_test\\.go$": "test files often ignore errors intentionally",
+      "(^|/)testdata/": "exclude analyzer testdata with intentional bugs"
     }
   },
   "errorsas": {},
   "lostcancel": {},
   "nilaway": {
     "exclude_files": {
-      "_test\\.go$": "test files use t.Fatal which nilaway doesn't understand"
+      "_test\\.go$": "test files use t.Fatal which nilaway doesn't understand",
+      "(^|/)testdata/": "exclude analyzer testdata with intentional bugs"
     }
   },
   "printf": {},
