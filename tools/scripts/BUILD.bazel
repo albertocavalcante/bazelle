@@ -1,1 +1,6 @@
 exports_files(["install-local.sh"])
+
+sh_binary(
+    name = "verify_prebuilt_protoc",
+    srcs = ["verify_prebuilt_protoc.sh"],
+)
