@@ -98,8 +98,12 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Setup Rust (Windows)
+        if: runner.os == 'Windows'
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Setup Bazelisk
-        uses: bazel-contrib/setup-bazel@e8776f58fb6a6e9055cbaf1b38c52ccc5247e9c4 # 0.14.0
+        uses: bazel-contrib/setup-bazel@77a1d3d18379c7cb0a7e3b9fcaaa4d94f1029763 # 0.18.0
         with:
           bazelisk-cache: true
           external-cache: true
@@ -187,7 +191,7 @@ jobs:
         run: find editors/code/bin -type f | head -20
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
         with:
           bun-version: latest
 
