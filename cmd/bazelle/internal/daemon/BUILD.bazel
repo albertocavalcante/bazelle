@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "daemon",
@@ -16,4 +16,25 @@ go_library(
         "//internal/log",
         "@bazel_gazelle//language",
     ],
+)
+
+go_test(
+    name = "daemon_test",
+    srcs = [
+        "client_test.go",
+        "handler_test.go",
+        "lifecycle_test.go",
+        "protocol_test.go",
+        "server_test.go",
+    ],
+    embed = [":daemon"],
+    race = "on",
+)
+
+go_test(
+    name = "daemon_integration_test",
+    srcs = ["integration_test.go"],
+    embed = [":daemon"],
+    race = "on",
+    tags = ["integration"],
 )

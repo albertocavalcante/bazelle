@@ -4,6 +4,7 @@
 
 import * as vscode from "vscode";
 import { getConfiguration } from "../configuration";
+import type { WatchMode } from "../services/watch";
 
 type ServerState = "ready" | "updating" | "watching" | "error" | "stopped";
 
@@ -23,9 +24,17 @@ const STATUS_COLORS: Record<ServerState, vscode.ThemeColor | undefined> = {
   stopped: undefined,
 };
 
+const WATCH_MODE_LABELS: Record<WatchMode, string> = {
+  daemon: "Daemon",
+  subprocess: "Subprocess",
+  none: "",
+};
+
 export class StatusBarManager implements vscode.Disposable {
   private statusBarItem: vscode.StatusBarItem;
   private currentState: ServerState = "stopped";
+  private watchMode: WatchMode = "none";
+  private daemonConnected = false;
   private extensionVersion: string;
   private disposables: vscode.Disposable[] = [];
 
@@ -96,7 +105,14 @@ export class StatusBarManager implements vscode.Disposable {
     const icon = STATUS_ICONS[this.currentState];
     const color = STATUS_COLORS[this.currentState];
 
-    this.statusBarItem.text = `${icon} Bazelle`;
+    // Add mode indicator when watching
+    let text = `${icon} Bazelle`;
+    if (this.currentState === "watching" && this.watchMode !== "none") {
+      const modeLabel = WATCH_MODE_LABELS[this.watchMode];
+      text = `${icon} Bazelle (${modeLabel})`;
+    }
+
+    this.statusBarItem.text = text;
     this.statusBarItem.backgroundColor = color;
     this.statusBarItem.tooltip = this.buildTooltip();
   }
@@ -109,10 +125,29 @@ export class StatusBarManager implements vscode.Disposable {
     md.appendMarkdown("### Bazelle\n\n");
     md.appendMarkdown(`**Status:** ${this.getStateLabel()}\n\n`);
     md.appendMarkdown(`**Version:** ${this.extensionVersion}\n\n`);
+
+    // Show daemon status
+    if (this.currentState === "watching") {
+      const modeLabel = this.watchMode === "daemon" ? "Daemon" : "Subprocess";
+      md.appendMarkdown(`**Watch Mode:** ${modeLabel}\n\n`);
+    }
+
+    if (this.daemonConnected) {
+      md.appendMarkdown("**Daemon:** $(check) Connected\n\n");
+    }
+
     md.appendMarkdown("---\n\n");
     md.appendMarkdown("[Update BUILD Files](command:bazelle.update) | ");
     md.appendMarkdown("[Check Status](command:bazelle.status) | ");
-    md.appendMarkdown("[Show Output](command:bazelle.showOutput)");
+    md.appendMarkdown("[Show Output](command:bazelle.showOutput)\n\n");
+
+    // Daemon commands
+    md.appendMarkdown("[Daemon Status](command:bazelle.daemon.status) | ");
+    if (this.daemonConnected) {
+      md.appendMarkdown("[Stop Daemon](command:bazelle.daemon.stop)");
+    } else {
+      md.appendMarkdown("[Start Daemon](command:bazelle.daemon.start)");
+    }
 
     return md;
   }
@@ -134,6 +169,7 @@ export class StatusBarManager implements vscode.Disposable {
 
   setReady(): void {
     this.currentState = "ready";
+    this.watchMode = "none";
     this.updateView();
   }
 
@@ -142,8 +178,9 @@ export class StatusBarManager implements vscode.Disposable {
     this.updateView();
   }
 
-  setWatching(): void {
+  setWatching(mode: WatchMode = "subprocess"): void {
     this.currentState = "watching";
+    this.watchMode = mode;
     this.updateView();
   }
 
@@ -154,7 +191,17 @@ export class StatusBarManager implements vscode.Disposable {
 
   setStopped(): void {
     this.currentState = "stopped";
+    this.watchMode = "none";
     this.updateView();
+  }
+
+  setDaemonConnected(connected: boolean): void {
+    this.daemonConnected = connected;
+    this.updateView();
+  }
+
+  getWatchMode(): WatchMode {
+    return this.watchMode;
   }
 
   dispose(): void {

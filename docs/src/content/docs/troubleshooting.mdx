@@ -159,6 +159,79 @@ Incremental state is stored in `.bazelle/` directory. You can add this to `.giti
   </TabItem>
 </Tabs>
 
+### Daemon not starting
+
+**Symptom**: `bazelle daemon start` fails or daemon crashes immediately.
+
+**Causes**:
+- Stale PID/socket files from previous crash
+- Socket directory doesn't exist
+- Permission issues
+
+**Solution**:
+
+<Steps>
+1. Clean up stale files:
+   ```bash
+   rm -f ~/.bazelle/daemon.sock ~/.bazelle/daemon.pid
+   ```
+2. Run in foreground to see errors:
+   ```bash
+   bazelle daemon start --foreground
+   ```
+3. Check permissions on `~/.bazelle/` directory
+</Steps>
+
+### Daemon connection refused
+
+**Symptom**: VS Code or CLI can't connect to running daemon.
+
+**Causes**:
+- Daemon crashed but PID file still exists
+- Socket file permissions incorrect
+- Wrong socket path configured
+
+**Solution**:
+
+<Steps>
+1. Check daemon status:
+   ```bash
+   bazelle daemon status
+   ```
+2. If it shows "stale PID file", clean up:
+   ```bash
+   bazelle daemon start  # Auto-cleans stale files
+   ```
+3. Verify socket permissions (should be 0600):
+   ```bash
+   ls -la ~/.bazelle/daemon.sock
+   ```
+4. Check VS Code is using correct socket path in settings
+</Steps>
+
+### Daemon using too much memory
+
+**Symptom**: Daemon process grows in memory over time.
+
+**Causes**:
+- Watching too many files
+- Memory leak (rare)
+
+**Solution**:
+
+<Steps>
+1. Restart the daemon periodically:
+   ```bash
+   bazelle daemon restart
+   ```
+2. Use `.gitignore` patterns to exclude unnecessary files
+3. Watch only specific subdirectories:
+   ```bash
+   # In VS Code or via daemon API, specify paths
+   bazelle watch ./src  # Instead of entire workspace
+   ```
+</Steps>
+
 ### Wrong dependencies generated
 
 **Symptom**: Generated `deps` attribute has incorrect targets.

@@ -167,7 +167,8 @@ Stop the running daemon.
 bazelle daemon stop [flags]
 
 Flags:
-  --force    Force kill if graceful shutdown fails
+  --force        Force kill if graceful shutdown fails
+  --socket PATH  Custom socket path (if using non-default)
 ```
 
 **Behavior:**
@@ -186,7 +187,8 @@ Check daemon status.
 bazelle daemon status [flags]
 
 Flags:
-  --json    Output as JSON
+  --json         Output as JSON
+  --socket PATH  Custom socket path (if using non-default)
 ```
 
 **Output:**
@@ -204,6 +206,14 @@ Connected clients: 2
 ### `bazelle daemon restart`
 
 Convenience command: stop + start.
+
+```bash
+bazelle daemon restart [flags]
+
+Flags:
+  --force        Force kill if graceful stop fails
+  --socket PATH  Custom socket path (if using non-default)
+```
 
 ## Lifecycle Management
 
@@ -343,12 +353,23 @@ Fallback behavior: if daemon not running, spawn `bazelle watch` as before.
 
 ## Success Criteria
 
-- [ ] `bazelle daemon start` launches background process
-- [ ] `bazelle daemon stop` cleanly shuts down daemon
-- [ ] `bazelle daemon status` shows daemon info
-- [ ] Multiple clients can connect simultaneously
-- [ ] File changes trigger notifications to all connected clients
-- [ ] Daemon survives client disconnections
-- [ ] Clean shutdown on SIGTERM/SIGINT
-- [ ] Crash recovery works (stale files cleaned up)
-- [ ] VS Code extension can connect to daemon
+- [x] `bazelle daemon start` launches background process
+- [x] `bazelle daemon stop` cleanly shuts down daemon
+- [x] `bazelle daemon status` shows daemon info
+- [x] Multiple clients can connect simultaneously
+- [x] File changes trigger notifications to all connected clients
+- [x] Daemon survives client disconnections
+- [x] Clean shutdown on SIGTERM/SIGINT
+- [x] Crash recovery works (stale files cleaned up)
+- [x] VS Code extension can connect to daemon
+
+## Implementation Status
+
+Phase 1 implementation is complete. All success criteria have been met:
+
+- **CLI Commands**: `daemon start`, `stop`, `status`, `restart` all implemented
+- **Server**: Unix socket server with JSON-RPC 2.0 protocol
+- **Client**: Go client library and TypeScript client for VS Code
+- **Watch Integration**: Daemon runs file watcher, broadcasts events to clients
+- **VS Code Extension**: Connects to daemon, falls back to subprocess mode
+- **Testing**: Unit tests for protocol, lifecycle, handlers; integration tests for server/client

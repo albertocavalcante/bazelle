@@ -193,18 +193,30 @@ func (c *Client) StatusGet() (*StatusGetResult, error) {
 	return &result, nil
 }
 
-// SubscribeEvents starts receiving event notifications.
-// Returns a channel that receives notifications.
-// The channel is closed when the connection is closed.
+// SubscribeEvents starts receiving event notifications from the daemon.
+//
+// Returns a channel that receives notifications. The channel has a buffer of 100
+// messages; if the buffer fills up, older messages are dropped. The channel is
+// closed when the connection is closed.
+//
+// Note: The client must call WatchStart to subscribe the server-side connection
+// to watch events. This method only sets up the client-side event receiver.
+//
+// Example:
+//
+//	events, err := client.SubscribeEvents()
+//	if err != nil {
+//	    return err
+//	}
+//	for event := range events {
+//	    fmt.Printf("Event: %s\n", event.Method)
+//	}
 func (c *Client) SubscribeEvents() (<-chan *Notification, error) {
 	// Create event channel if not already created
 	c.eventOnce.Do(func() {
 		c.eventCh = make(chan *Notification, 100)
 		go c.readEvents()
 	})
-
-	// Note: In a real implementation, we would send a subscribe request.
-	// For simplicity, the server sends events to all clients.
 
 	return c.eventCh, nil
 }

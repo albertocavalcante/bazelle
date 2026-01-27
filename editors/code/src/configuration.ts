@@ -10,6 +10,9 @@ export interface BazelleConfig {
   statusBarShow: "always" | "onBazelWorkspace" | "never";
   watchEnabled: boolean;
   watchDebounceMs: number;
+  daemonEnabled: boolean;
+  daemonSocketPath: string | undefined;
+  daemonAutoStart: boolean;
 }
 
 export function getConfiguration(): BazelleConfig {
@@ -24,5 +27,8 @@ export function getConfiguration(): BazelleConfig {
     ),
     watchEnabled: config.get<boolean>("watch.enabled", false),
     watchDebounceMs: config.get<number>("watch.debounceMs", 500),
+    daemonEnabled: config.get<boolean>("daemon.enabled", true),
+    daemonSocketPath: config.get<string>("daemon.socketPath"),
+    daemonAutoStart: config.get<boolean>("daemon.autoStart", false),
   };
 }

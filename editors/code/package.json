@@ -76,6 +76,22 @@
       {
         "command": "bazelle.downloadBinary",
         "title": "Bazelle: Download Binary"
+      },
+      {
+        "command": "bazelle.daemon.start",
+        "title": "Bazelle: Start Daemon"
+      },
+      {
+        "command": "bazelle.daemon.stop",
+        "title": "Bazelle: Stop Daemon"
+      },
+      {
+        "command": "bazelle.daemon.status",
+        "title": "Bazelle: Daemon Status"
+      },
+      {
+        "command": "bazelle.daemon.restart",
+        "title": "Bazelle: Restart Daemon"
       }
     ],
     "configuration": {
@@ -115,6 +131,21 @@
           "type": "number",
           "default": 500,
           "description": "Debounce delay for watch mode in milliseconds"
+        },
+        "bazelle.daemon.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use daemon for watch mode when available. If disabled or daemon is not running, falls back to subprocess mode."
+        },
+        "bazelle.daemon.socketPath": {
+          "type": "string",
+          "default": null,
+          "description": "Custom path to the daemon socket. Defaults to ~/.bazelle/daemon.sock"
+        },
+        "bazelle.daemon.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically start the daemon if not running when watch mode is started"
         }
       }
     },

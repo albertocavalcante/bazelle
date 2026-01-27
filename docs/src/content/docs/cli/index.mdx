@@ -26,6 +26,10 @@ Bazelle provides a command-line interface for generating and managing Bazel BUIL
     Watch for file changes and auto-update BUILD files.
     [Learn more →](/bazelle/cli/watch/)
   </Card>
+  <Card title="daemon" icon="laptop">
+    Manage the background daemon for improved performance.
+    [Learn more →](/bazelle/cli/daemon/)
+  </Card>
 </CardGrid>
 
 ## Global Options
@@ -66,6 +70,12 @@ bazelle init
 
 # Watch for changes during development
 bazelle watch
+
+# Start daemon for improved performance
+bazelle daemon start
+
+# Check daemon status
+bazelle daemon status
 
 # Show version
 bazelle version

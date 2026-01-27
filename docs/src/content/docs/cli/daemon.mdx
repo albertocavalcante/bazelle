@@ -1,0 +1,344 @@
+---
+title: daemon
+description: Manage the bazelle background daemon for improved performance
+---
+
+import { Tabs, TabItem, Aside, Steps, Badge } from '@astrojs/starlight/components';
+
+The `daemon` command manages the bazelle background daemon process. The daemon provides improved performance by eliminating startup overhead and allowing multiple clients to share a single file watcher.
+
+## Why Use the Daemon?
+
+| Without Daemon | With Daemon |
+|----------------|-------------|
+| ~500ms startup per operation | Instant (already running) |
+| Separate process per command | Single shared process |
+| New file watcher per session | Shared file watcher |
+| Single client at a time | Multiple simultaneous clients |
+
+The daemon is especially useful when:
+- Using the VS Code extension with watch mode
+- Running frequent `bazelle update` commands during development
+- Working with large codebases where startup overhead is noticeable
+
+## Commands
+
+### `bazelle daemon start`
+
+Start the daemon process.
+
+```bash
+bazelle daemon start [flags]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--foreground` | Run in foreground (don't daemonize). Useful for debugging. |
+| `--socket PATH` | Custom socket path (default: `~/.bazelle/daemon.sock`) |
+| `--log PATH` | Custom log file path (default: `~/.bazelle/daemon.log`) |
+
+**Examples:**
+
+```bash
+# Start daemon in background (default)
+bazelle daemon start
+
+# Run in foreground (see logs in terminal, Ctrl+C to stop)
+bazelle daemon start --foreground
+
+# Use custom socket path
+bazelle daemon start --socket /tmp/bazelle.sock
+```
+
+**Behavior:**
+
+<Steps>
+1. Checks if daemon is already running (via PID file)
+2. If running, prints "Daemon already running (PID: xxx)" and exits
+3. Cleans up any stale files from previous crashes
+4. Forks a background process (unless `--foreground`)
+5. Creates Unix socket and starts listening for connections
+6. Writes PID file
+7. Prints "Daemon started (PID: xxx)"
+</Steps>
+
+### `bazelle daemon stop`
+
+Stop the running daemon.
+
+```bash
+bazelle daemon stop [flags]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Force kill (SIGKILL) if graceful shutdown fails |
+| `--socket PATH` | Custom socket path |
+
+**Examples:**
+
+```bash
+# Graceful shutdown
+bazelle daemon stop
+
+# Force kill if graceful fails
+bazelle daemon stop --force
+```
+
+**Behavior:**
+
+<Steps>
+1. Connects to daemon via socket
+2. Sends shutdown RPC request
+3. Waits up to 5 seconds for graceful shutdown
+4. If `--force` and still running, sends SIGKILL
+5. Cleans up socket and PID files
+</Steps>
+
+### `bazelle daemon status`
+
+Check the daemon status.
+
+```bash
+bazelle daemon status [flags]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON (for scripting) |
+| `--socket PATH` | Custom socket path |
+
+**Example Output:**
+
+```
+Daemon: running (PID: 12345)
+Socket: /Users/you/.bazelle/daemon.sock
+Version: 0.1.0
+Uptime: 2h 15m
+Watching: yes
+  Paths:
+    - /path/to/workspace
+  Languages:
+    - go
+    - kotlin
+```
+
+**JSON Output:**
+
+```bash
+bazelle daemon status --json
+```
+
+```json
+{
+  "running": true,
+  "pid": 12345,
+  "socket_path": "/Users/you/.bazelle/daemon.sock",
+  "version": "0.1.0",
+  "uptime": "2h15m30s",
+  "start_time": "2024-01-27T10:00:00Z",
+  "watching": true,
+  "watch_paths": ["/path/to/workspace"],
+  "watch_languages": ["go", "kotlin"]
+}
+```
+
+### `bazelle daemon restart`
+
+Restart the daemon (stop + start).
+
+```bash
+bazelle daemon restart [flags]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Force kill if graceful stop fails |
+| `--socket PATH` | Custom socket path |
+
+**Examples:**
+
+```bash
+# Graceful restart
+bazelle daemon restart
+
+# Force restart
+bazelle daemon restart --force
+```
+
+## File Locations
+
+The daemon stores its files in `~/.bazelle/` by default:
+
+| File | Purpose |
+|------|---------|
+| `daemon.sock` | Unix domain socket for client connections |
+| `daemon.pid` | PID file containing the daemon process ID |
+| `daemon.log` | Log output when running in background mode |
+
+<Aside type="tip">
+Use `--socket` to specify a custom socket path. The PID and log files will be created alongside it (e.g., `/tmp/bazelle.sock` creates `/tmp/bazelle.sock.pid` and `/tmp/bazelle.sock.log`).
+</Aside>
+
+## Architecture
+
+```
+                    Daemon Process
+  ┌──────────────────────────────────────────────┐
+  │  ┌─────────┐  ┌──────────┐  ┌─────────────┐  │
+  │  │ Watcher │  │ Debouncer│  │   Gazelle   │  │
+  │  └────┬────┘  └────┬─────┘  └──────┬──────┘  │
+  │       └────────────┴───────────────┘         │
+  │                    │                         │
+  │            ┌───────┴───────┐                 │
+  │            │    Server     │                 │
+  │            │ (JSON-RPC 2.0)│                 │
+  │            └───────┬───────┘                 │
+  └────────────────────┼─────────────────────────┘
+                       │ ~/.bazelle/daemon.sock
+       ┌───────────────┼───────────────┐
+       │               │               │
+  ┌────┴────┐    ┌─────┴─────┐   ┌─────┴─────┐
+  │   CLI   │    │  VS Code  │   │  Other    │
+  │ Client  │    │ Extension │   │  Tools    │
+  └─────────┘    └───────────┘   └───────────┘
+```
+
+## Protocol
+
+The daemon uses JSON-RPC 2.0 over Unix sockets with newline-delimited messages.
+
+### RPC Methods
+
+| Method | Direction | Description |
+|--------|-----------|-------------|
+| `ping` | client → server | Health check, returns version and uptime |
+| `shutdown` | client → server | Request graceful shutdown |
+| `watch/start` | client → server | Start watching paths |
+| `watch/stop` | client → server | Stop watching |
+| `watch/status` | client → server | Get current watch status |
+| `watch/event` | server → client | File change notification |
+| `update/run` | client → server | Trigger manual BUILD file update |
+| `status/get` | client → server | Get staleness status |
+
+<Aside type="note">
+The protocol specification is defined in [daemon-mode-phase1.md](/bazelle/specs/daemon-mode-phase1/).
+</Aside>
+
+## Integration
+
+### VS Code Extension
+
+The VS Code extension automatically uses the daemon when available:
+
+1. Enable daemon mode in settings (default: enabled)
+2. Start the daemon: `bazelle daemon start`
+3. In VS Code, run "Bazelle: Start Watch Mode"
+4. The extension connects to the daemon automatically
+
+If the daemon is unavailable, the extension falls back to subprocess mode.
+
+```json
+{
+  "bazelle.daemon.enabled": true,
+  "bazelle.daemon.autoStart": false,
+  "bazelle.daemon.socketPath": null
+}
+```
+
+### Scripting
+
+Use `--json` output for scripting:
+
+```bash
+# Check if daemon is running in scripts
+if bazelle daemon status --json | jq -e '.running' > /dev/null; then
+  echo "Daemon is running"
+else
+  bazelle daemon start
+fi
+```
+
+### CI/CD
+
+<Aside type="caution">
+The daemon is designed for local development, not CI/CD. In CI, use `bazelle update --check` instead, which doesn't require a daemon.
+</Aside>
+
+## Troubleshooting
+
+### Daemon won't start
+
+```bash
+# Check for stale files
+ls -la ~/.bazelle/
+
+# Clean up if needed
+rm -f ~/.bazelle/daemon.sock ~/.bazelle/daemon.pid
+
+# Try starting in foreground to see errors
+bazelle daemon start --foreground
+```
+
+### Connection refused
+
+```bash
+# Verify daemon is running
+bazelle daemon status
+
+# Check socket permissions
+ls -la ~/.bazelle/daemon.sock
+# Should show: srw------- (0600)
+
+# Check if another process owns the socket
+lsof ~/.bazelle/daemon.sock
+```
+
+### Daemon crashes
+
+Check the log file for errors:
+
+```bash
+tail -100 ~/.bazelle/daemon.log
+```
+
+Common causes:
+- Out of memory (reduce watched paths)
+- File system watcher limit (increase `fs.inotify.max_user_watches` on Linux)
+- Socket permission issues
+
+### Viewing logs
+
+```bash
+# Follow daemon logs
+tail -f ~/.bazelle/daemon.log
+
+# Or run in foreground
+bazelle daemon stop
+bazelle daemon start --foreground
+```
+
+## Signals
+
+The daemon handles these signals gracefully:
+
+| Signal | Action |
+|--------|--------|
+| SIGTERM | Graceful shutdown |
+| SIGINT (Ctrl+C) | Graceful shutdown |
+| SIGHUP | Graceful shutdown |
+
+## Limitations
+
+- **Unix only**: Daemon uses Unix domain sockets (not available on Windows)
+- **Single user**: Socket permissions restrict access to the owner
+- **Local only**: No TCP/network support (planned for Phase 2)
+- **Single workspace**: Currently supports one workspace per daemon (multi-workspace planned)

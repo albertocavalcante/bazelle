@@ -1,4 +1,42 @@
 // Package daemon implements the bazelle daemon server and client.
+//
+// The daemon provides a background process that clients can connect to via
+// Unix domain sockets using the JSON-RPC 2.0 protocol. This enables:
+//
+//   - Persistent file watching without startup overhead
+//   - Multiple clients (CLI, VS Code, etc.) sharing a single watcher
+//   - Efficient BUILD file regeneration on file changes
+//
+// # Architecture
+//
+// The daemon uses a client-server model:
+//
+//   - Server: Listens on a Unix socket (~/.bazelle/daemon.sock)
+//   - Client: Connects via the socket and sends JSON-RPC requests
+//   - Handler: Processes requests and manages the file watcher
+//
+// # Protocol
+//
+// All communication uses JSON-RPC 2.0 with newline-delimited messages.
+// Supported methods: ping, shutdown, watch/start, watch/stop, watch/status,
+// update/run, status/get. The server sends watch/event notifications to
+// subscribed clients when file changes are detected.
+//
+// # Usage
+//
+// Server (typically started via CLI):
+//
+//	server := daemon.NewServer(daemon.ServerConfig{
+//	    Paths:   paths,
+//	    Version: "1.0.0",
+//	})
+//	err := server.Start(ctx)
+//
+// Client:
+//
+//	client, err := daemon.Connect(socketPath)
+//	defer client.Close()
+//	result, err := client.Ping()
 package daemon
 
 import (

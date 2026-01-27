@@ -3,7 +3,7 @@ title: watch
 description: Watch for file changes and auto-update BUILD files
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Steps } from '@astrojs/starlight/components';
 
 The `watch` command monitors your workspace for source file changes and automatically updates BUILD files when changes are detected. This provides a seamless development experience where BUILD files stay in sync with your code.
 
@@ -124,9 +124,26 @@ Watch automatically ignores:
 
 ## Integration with Editors
 
-### VS Code
+### VS Code with Daemon (Recommended)
 
-Add to your tasks.json:
+For the best experience, use the daemon mode:
+
+<Steps>
+1. Start the daemon: `bazelle daemon start`
+2. In VS Code, run "Bazelle: Start Watch Mode"
+3. The extension connects to the daemon automatically
+</Steps>
+
+Benefits of daemon mode:
+- Zero startup overhead
+- Shared file watcher across clients
+- Survives VS Code restarts
+
+See [VS Code Extension](/bazelle/editors/vscode/) for full documentation.
+
+### VS Code with Tasks
+
+If you prefer tasks.json:
 
 ```json
 {
@@ -146,6 +163,22 @@ Run watch in a split pane while developing:
 # tmux example
 tmux split-window -h 'bazelle watch'
 ```
+
+## Daemon vs Standalone Watch
+
+The `bazelle watch` command can run:
+
+1. **Standalone**: Directly as a foreground process
+2. **Via Daemon**: As part of the background daemon
+
+| Mode | Command | Use Case |
+|------|---------|----------|
+| Standalone | `bazelle watch` | Quick testing, simple workflows |
+| Daemon | `bazelle daemon start` + connect | Development with VS Code, multiple tools |
+
+<Aside type="tip">
+For long development sessions, use the daemon. For quick one-off watching, standalone is fine.
+</Aside>
 
 ## Graceful Shutdown
 

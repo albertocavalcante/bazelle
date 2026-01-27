@@ -70,6 +70,10 @@ Access all commands via the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`):
 | `Bazelle: Initialize Project` | Run `bazelle init` to set up a new project |
 | `Bazelle: Show Output` | Open the Bazelle output channel |
 | `Bazelle: Download Binary` | Download the Bazelle binary for your platform |
+| `Bazelle: Start Daemon` | Start the bazelle daemon process |
+| `Bazelle: Stop Daemon` | Stop the running daemon |
+| `Bazelle: Daemon Status` | Show daemon status and info |
+| `Bazelle: Restart Daemon` | Restart the daemon |
 
 ## Configuration
 
@@ -91,7 +95,16 @@ Configure the extension in your VS Code settings (`settings.json`):
   "bazelle.watch.enabled": false,
 
   // Debounce delay for watch mode (milliseconds)
-  "bazelle.watch.debounceMs": 500
+  "bazelle.watch.debounceMs": 500,
+
+  // Enable daemon mode (falls back to subprocess if unavailable)
+  "bazelle.daemon.enabled": true,
+
+  // Custom daemon socket path (default: ~/.bazelle/daemon.sock)
+  "bazelle.daemon.socketPath": null,
+
+  // Automatically start daemon if not running
+  "bazelle.daemon.autoStart": false
 }
 ```
 
@@ -131,6 +144,46 @@ When enabled, the extension starts watch mode automatically when you open a Baze
 #### `bazelle.watch.debounceMs`
 
 How long to wait (in milliseconds) after a file change before running the update. This prevents running multiple updates when saving multiple files quickly. Default: 500ms.
+
+#### `bazelle.daemon.enabled`
+
+When enabled (default), the extension attempts to connect to the bazelle daemon for watch mode. If the daemon is not running, it falls back to subprocess mode. The daemon provides better performance by eliminating startup overhead.
+
+#### `bazelle.daemon.socketPath`
+
+Custom path to the daemon socket. By default, uses `~/.bazelle/daemon.sock`. Only change this if you're running the daemon with a custom socket path.
+
+#### `bazelle.daemon.autoStart`
+
+When enabled, the extension will automatically start the daemon if it's not already running when you start watch mode. Default: false.
+
+## Daemon Mode
+
+The extension can operate in two modes for watch functionality:
+
+### Daemon Mode (Recommended)
+
+The daemon is a background process that provides:
+- **Zero startup overhead**: Already running, instant responses
+- **Multi-client support**: CLI, VS Code, and other tools share one process
+- **Efficient file watching**: Single shared file watcher
+
+To use daemon mode:
+
+<Steps>
+1. Start the daemon from terminal: `bazelle daemon start`
+2. In VS Code, run "Bazelle: Start Watch Mode"
+3. The extension connects to the daemon automatically
+</Steps>
+
+### Subprocess Mode (Fallback)
+
+If the daemon is unavailable, the extension falls back to spawning `bazelle watch` as a subprocess. This works but has more overhead.
+
+### Checking the Active Mode
+
+- Open the Output panel ("Bazelle: Show Output")
+- Look for `[Daemon] Connected to bazelle daemon` (daemon mode) or `Starting watch mode (subprocess)` (subprocess mode)
 
 ## Status Bar
 
@@ -191,6 +244,48 @@ If you see "Bazelle binary not found":
 1. Increase `bazelle.watch.debounceMs` if updates are too frequent
 2. Check that the file patterns match your source files
 3. Verify the workspace is correctly detected
+
+### Daemon connection issues
+
+**"Failed to connect to daemon":**
+
+<Steps>
+1. Check if daemon is running: `bazelle daemon status`
+2. If not running, start it: `bazelle daemon start`
+3. Check the Output panel for detailed error messages
+</Steps>
+
+**Watch mode falling back to subprocess:**
+
+This happens when the daemon is unavailable. To use daemon mode:
+
+```bash
+# Start the daemon
+bazelle daemon start
+
+# Verify it's running
+bazelle daemon status
+```
+
+**"Connection lost" or frequent disconnects:**
+
+<Steps>
+1. Check daemon logs: `tail -f ~/.bazelle/daemon.log`
+2. Restart the daemon: `bazelle daemon restart`
+3. If issues persist, run in foreground to debug: `bazelle daemon start --foreground`
+</Steps>
+
+**Socket permission errors:**
+
+```bash
+# Check socket permissions
+ls -la ~/.bazelle/daemon.sock
+
+# Should show owner-only permissions (srw-------)
+# If wrong, clean up and restart:
+rm -f ~/.bazelle/daemon.sock ~/.bazelle/daemon.pid
+bazelle daemon start
+```
 
 ## Building from Source
 
