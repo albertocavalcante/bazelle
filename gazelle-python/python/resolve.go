@@ -48,13 +48,15 @@ func (*pythonLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Rem
 
 	// Resolve each import to a dependency
 	var deps []string
+	seen := make(map[string]bool)
+
 	for _, imp := range importList {
 		// Skip stdlib imports
 		if IsStdlib(imp) {
 			continue
 		}
 
-		// Try to resolve using the rule index
+		// Try to resolve using the rule index first
 		spec := resolve.ImportSpec{
 			Lang: pythonName,
 			Imp:  imp,
@@ -62,15 +64,29 @@ func (*pythonLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Rem
 		if matches := ix.FindRulesByImport(spec, pythonName); len(matches) > 0 {
 			// Use the first match
 			l := matches[0].Label
+			var depLabel string
 			if l.Repo == "" && l.Pkg == from.Pkg {
 				// Same package, use relative label
-				deps = append(deps, ":"+l.Name)
+				depLabel = ":" + l.Name
 			} else {
-				deps = append(deps, l.String())
+				depLabel = l.String()
+			}
+			if !seen[depLabel] {
+				seen[depLabel] = true
+				deps = append(deps, depLabel)
+			}
+			continue
+		}
+
+		// If not found in index, try pip resolution
+		if pc.Pip != nil {
+			if pipLabel := pc.Pip.GetPipLabel(imp); pipLabel != "" {
+				if !seen[pipLabel] {
+					seen[pipLabel] = true
+					deps = append(deps, pipLabel)
+				}
 			}
 		}
-		// If not found in index, the import might be an external dependency
-		// that would be handled by pip_install or similar
 	}
 
 	if len(deps) > 0 {

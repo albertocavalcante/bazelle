@@ -1,0 +1,74 @@
+# Pip package to Python module name mappings
+# Format: pip-package-name=module_name
+#
+# Many pip packages have different names than their importable modules.
+# This file provides the mapping for common packages.
+
+# Data Science / ML
+scikit-learn=sklearn
+scikit-image=skimage
+opencv-python=cv2
+opencv-python-headless=cv2
+opencv-contrib-python=cv2
+tensorflow-gpu=tensorflow
+pytorch=torch
+torch-vision=torchvision
+Pillow=PIL
+beautifulsoup4=bs4
+
+# Web Frameworks
+Flask-RESTful=flask_restful
+Flask-SQLAlchemy=flask_sqlalchemy
+Flask-Login=flask_login
+Flask-WTF=flask_wtf
+Flask-Migrate=flask_migrate
+FastAPI=fastapi
+uvicorn=uvicorn
+
+# Database
+SQLAlchemy=sqlalchemy
+psycopg2-binary=psycopg2
+PyMySQL=pymysql
+redis-py=redis
+
+# Configuration / Serialization
+PyYAML=yaml
+python-dotenv=dotenv
+python-dateutil=dateutil
+python-json-logger=pythonjsonlogger
+
+# CLI / Utilities
+Click=click
+python-slugify=slugify
+python-magic=magic
+
+# Testing
+pytest-cov=pytest_cov
+pytest-mock=pytest_mock
+pytest-asyncio=pytest_asyncio
+
+# Async
+aiohttp=aiohttp
+aiobotocore=aiobotocore
+
+# AWS
+boto3=boto3
+botocore=botocore
+
+# Google Cloud
+google-cloud-storage=google.cloud.storage
+google-cloud-bigquery=google.cloud.bigquery
+google-cloud-pubsub=google.cloud.pubsub
+google-auth=google.auth
+google-api-python-client=googleapiclient
+
+# Apache
+apache-airflow=airflow
+apache-beam=apache_beam
+
+# Misc
+attrs=attr
+cattrs=cattr
+msgpack-python=msgpack
+Markdown=markdown
+Pygments=pygments

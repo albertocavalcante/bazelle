@@ -34,23 +34,36 @@ type PythonConfig struct {
 
 	// StdlibModulesFile is an optional path to a custom stdlib modules list.
 	StdlibModulesFile string
+
+	// Pip contains pip-specific configuration.
+	Pip *PipConfig
+
+	// NamespacePackages enables namespace package detection (PEP 420).
+	NamespacePackages bool
 }
 
 // Clone creates a copy of the configuration.
 func (c *PythonConfig) Clone() *PythonConfig {
 	clone := *c
+	// Deep copy pip config
+	if c.Pip != nil {
+		pipCopy := *c.Pip
+		clone.Pip = &pipCopy
+	}
 	return &clone
 }
 
 // NewPythonConfig creates a new PythonConfig with default values.
 func NewPythonConfig() *PythonConfig {
 	return &PythonConfig{
-		Enabled:       false,
-		LibraryMacro:  "py_library",
-		TestMacro:     "py_test",
-		BinaryMacro:   "py_binary",
-		Visibility:    "//visibility:public",
-		TestFramework: "pytest",
+		Enabled:           false,
+		LibraryMacro:      "py_library",
+		TestMacro:         "py_test",
+		BinaryMacro:       "py_binary",
+		Visibility:        "//visibility:public",
+		TestFramework:     "pytest",
+		Pip:               NewPipConfig(),
+		NamespacePackages: false,
 	}
 }
 
@@ -85,6 +98,9 @@ func (*pythonLang) KnownDirectives() []string {
 		"python_load",
 		"python_test_framework",
 		"python_stdlib_modules_file",
+		"python_requirements_file",
+		"python_pip_repository",
+		"python_namespace_packages",
 	}
 }
 
@@ -130,6 +146,18 @@ func (*pythonLang) Configure(c *config.Config, rel string, f *rule.File) {
 			}
 		case "python_stdlib_modules_file":
 			newPc.StdlibModulesFile = d.Value
+		case "python_requirements_file":
+			if newPc.Pip == nil {
+				newPc.Pip = NewPipConfig()
+			}
+			newPc.Pip.RequirementsFile = d.Value
+		case "python_pip_repository":
+			if newPc.Pip == nil {
+				newPc.Pip = NewPipConfig()
+			}
+			newPc.Pip.PipRepository = d.Value
+		case "python_namespace_packages":
+			newPc.NamespacePackages = strings.ToLower(d.Value) == "true"
 		}
 	}
 }

@@ -73,8 +73,7 @@ func TestDeriveTargetName(t *testing.T) {
 // ============================================================================
 
 func TestGetSrcGlobs(t *testing.T) {
-	files := []string{"main.py", "utils.py", "helper.py"}
-	result := getSrcGlobs(files)
+	result := getSrcGlobs()
 
 	// Check it returns a GlobValue
 	if len(result.Patterns) == 0 {

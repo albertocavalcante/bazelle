@@ -1,0 +1,6 @@
+# Groovy and Java standard library prefixes
+# Types from these packages are always available and don't need explicit dependencies
+groovy
+java
+javax
+org.codehaus.groovy

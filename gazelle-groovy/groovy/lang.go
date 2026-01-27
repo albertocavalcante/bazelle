@@ -6,11 +6,16 @@ import "github.com/bazelbuild/bazel-gazelle/language"
 const groovyName = "groovy"
 
 // groovyLang implements the language.Language interface for Groovy.
-type groovyLang struct{}
+type groovyLang struct {
+	// parser provides HEURISTIC parsing of Groovy source files.
+	parser *GroovyParser
+}
 
 // NewLanguage creates a new Groovy language extension for Gazelle.
 func NewLanguage() language.Language {
-	return &groovyLang{}
+	return &groovyLang{
+		parser: NewParser(),
+	}
 }
 
 // Name returns the name of the language extension.

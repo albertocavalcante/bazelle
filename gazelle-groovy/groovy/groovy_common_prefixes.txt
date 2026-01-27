@@ -1,0 +1,29 @@
+# Common third-party package prefixes for Groovy projects
+# FQNs starting with these are likely external dependencies
+com
+org
+io
+net
+dev
+me
+app
+co
+# Popular Groovy/Java libraries
+spock
+geb
+grails
+gradle
+spring
+reactor
+junit
+mockito
+assertj
+hamcrest
+guava
+apache
+jackson
+gson
+hibernate
+jooq
+retrofit
+okhttp

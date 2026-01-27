@@ -7,6 +7,21 @@ import (
 	"strings"
 )
 
+// RelativeImport represents a relative import statement in Python.
+// For example, "from ..utils import helper" would be represented as:
+//
+//	RelativeImport{Level: 2, Module: "utils", Names: ["helper"]}
+type RelativeImport struct {
+	// Level is the number of leading dots (1 for ".", 2 for "..", etc.)
+	Level int
+
+	// Module is the module path after the dots (may be empty for "from . import X")
+	Module string
+
+	// Names is the list of names being imported
+	Names []string
+}
+
 // ParseResult contains the result of parsing a Python file.
 //
 // All fields are populated using HEURISTIC parsing. Results are accurate
@@ -18,6 +33,10 @@ type ParseResult struct {
 	// FromImports is a map of "from X import Y" statements.
 	// Key is the module path, value is the list of imported names.
 	FromImports map[string][]string
+
+	// RelativeImports is a list of relative import statements.
+	// These are "from . import X" or "from ..module import Y" style imports.
+	RelativeImports []RelativeImport
 
 	// HasMainBlock indicates if the file has an `if __name__ == "__main__":` block.
 	HasMainBlock bool
@@ -59,6 +78,9 @@ type PythonParser struct {
 	// HEURISTIC: Matches "from X import Y" statements
 	fromImportRegex *regexp.Regexp
 
+	// HEURISTIC: Matches relative imports like "from . import X" or "from ..module import Y"
+	relativeImportRegex *regexp.Regexp
+
 	// HEURISTIC: Matches `if __name__ == "__main__":` or similar
 	mainBlockRegex *regexp.Regexp
 }
@@ -78,6 +100,11 @@ func NewParser() *PythonParser {
 		// Handles: "from os import path", "from os.path import join as pjoin"
 		// Limitation: Multi-line imports with unusual formatting may be missed
 		fromImportRegex: regexp.MustCompile(`^\s*from\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s+import\s+(.+)`),
+
+		// HEURISTIC: Match relative imports
+		// Handles: "from . import utils", "from .. import parent", "from .utils import helper"
+		// Captures: [full match, dots, optional module, imported names]
+		relativeImportRegex: regexp.MustCompile(`^\s*from\s+(\.+)([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)?\s+import\s+(.+)`),
 
 		// HEURISTIC: Match main block
 		// Handles: if __name__ == "__main__": (with single or double quotes)
@@ -159,16 +186,27 @@ func (p *PythonParser) ParseFile(path string) (*ParseResult, error) {
 			}
 		}
 
-		// Check for from...import statements
+		// Check for relative imports first (from . import X, from ..module import Y)
+		if matches := p.relativeImportRegex.FindStringSubmatch(line); len(matches) > 3 {
+			dots := matches[1]
+			module := matches[2] // May be empty for "from . import X"
+			names := matches[3]
+
+			importedNames := parseImportNames(names)
+			if len(importedNames) > 0 {
+				result.RelativeImports = append(result.RelativeImports, RelativeImport{
+					Level:  len(dots),
+					Module: module,
+					Names:  importedNames,
+				})
+			}
+			continue
+		}
+
+		// Check for from...import statements (absolute imports only)
 		if matches := p.fromImportRegex.FindStringSubmatch(line); len(matches) > 2 {
 			module := matches[1]
 			names := matches[2]
-
-			// Handle relative imports (from . import X, from .. import X)
-			if strings.HasPrefix(module, ".") {
-				// Skip relative imports for now - they're internal
-				continue
-			}
 
 			// Parse the imported names
 			importedNames := parseImportNames(names)
@@ -263,4 +301,62 @@ func (r *ParseResult) GetAllImports() []string {
 	}
 
 	return result
+}
+
+// ResolveRelativeImport resolves a relative import to an absolute module path.
+//
+// Parameters:
+//   - rel: The relative import to resolve
+//   - currentPkg: The current package path (e.g., "myapp.utils.helpers")
+//
+// Returns:
+//   - The resolved absolute module path, or empty string if resolution fails
+//
+// Examples:
+//   - ResolveRelativeImport({Level: 1, Module: "utils"}, "myapp.core") -> "myapp.utils"
+//   - ResolveRelativeImport({Level: 2, Module: ""}, "myapp.core.sub") -> "myapp.core"
+//   - ResolveRelativeImport({Level: 1, Module: ""}, "myapp") -> "" (goes above root)
+func ResolveRelativeImport(rel RelativeImport, currentPkg string) string {
+	if currentPkg == "" {
+		return ""
+	}
+
+	parts := strings.Split(currentPkg, ".")
+
+	// Level 1 = current package directory, Level 2 = parent, etc.
+	// We need to go up (level - 1) directories from the current package
+	stepsUp := rel.Level - 1
+	if stepsUp < 0 {
+		stepsUp = 0
+	}
+
+	if stepsUp >= len(parts) {
+		// Would go above the root package
+		return ""
+	}
+
+	// Keep parts after stepping up
+	baseParts := parts[:len(parts)-stepsUp]
+
+	// Append the relative module if present
+	if rel.Module != "" {
+		baseParts = append(baseParts, strings.Split(rel.Module, ".")...)
+	}
+
+	if len(baseParts) == 0 {
+		return ""
+	}
+
+	return strings.Join(baseParts, ".")
+}
+
+// ResolveRelativeImports resolves all relative imports to absolute module paths.
+func (r *ParseResult) ResolveRelativeImports(currentPkg string) []string {
+	var resolved []string
+	for _, rel := range r.RelativeImports {
+		if absPath := ResolveRelativeImport(rel, currentPkg); absPath != "" {
+			resolved = append(resolved, absPath)
+		}
+	}
+	return resolved
 }

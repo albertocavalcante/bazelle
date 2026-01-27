@@ -96,11 +96,16 @@ func (p *pythonLang) generateLibraryRule(args language.GenerateArgs, pc *PythonC
 	name := deriveTargetName(args.Dir, args.Config.RepoRoot)
 
 	r := rule.NewRule(pc.LibraryMacro, name)
-	r.SetAttr("srcs", getSrcGlobs(files))
+	r.SetAttr("srcs", getSrcGlobs())
 	r.SetAttr("visibility", []string{pc.Visibility})
 
+	// Handle namespace packages (PEP 420)
+	if pc.NamespacePackages && isNamespacePackage(args.Dir) {
+		r.SetAttr("imports", []string{"."})
+	}
+
 	// Parse files to collect imports
-	allImports := p.collectImports(args.Dir, files)
+	allImports := p.collectImports(args, files)
 
 	// Store imports for resolution phase
 	r.SetPrivateAttr("python_imports", allImports)
@@ -117,7 +122,7 @@ func (p *pythonLang) generateTestRule(args language.GenerateArgs, pc *PythonConf
 	r.SetAttr("srcs", getTestSrcGlobs())
 
 	// Parse files to collect imports
-	allImports := p.collectImports(args.Dir, files)
+	allImports := p.collectImports(args, files)
 
 	// Store imports for resolution phase
 	r.SetPrivateAttr("python_imports", allImports)
@@ -149,19 +154,26 @@ func (p *pythonLang) generateBinaryRule(args language.GenerateArgs, pc *PythonCo
 		return r, nil
 	}
 
+	// Collect both absolute and resolved relative imports
 	allImports := result.GetAllImports()
+	currentPkg := derivePythonPackage(args.Dir, args.Config.RepoRoot)
+	allImports = append(allImports, result.ResolveRelativeImports(currentPkg)...)
+
 	r.SetPrivateAttr("python_imports", allImports)
 
 	return r, allImports
 }
 
 // collectImports parses files and collects all unique imports.
-func (p *pythonLang) collectImports(dir string, files []string) []string {
+func (p *pythonLang) collectImports(args language.GenerateArgs, files []string) []string {
 	seen := make(map[string]bool)
 	var allImports []string
 
+	// Derive the current Python package from the directory path
+	currentPkg := derivePythonPackage(args.Dir, args.Config.RepoRoot)
+
 	for _, file := range files {
-		fullPath := filepath.Join(dir, file)
+		fullPath := filepath.Join(args.Dir, file)
 		result, err := p.parser.ParseFile(fullPath)
 		if err != nil {
 			log.Warn("failed to parse python file",
@@ -169,10 +181,19 @@ func (p *pythonLang) collectImports(dir string, files []string) []string {
 			continue
 		}
 
+		// Collect absolute imports
 		for _, imp := range result.GetAllImports() {
 			if !seen[imp] {
 				seen[imp] = true
 				allImports = append(allImports, imp)
+			}
+		}
+
+		// Resolve and collect relative imports
+		for _, resolved := range result.ResolveRelativeImports(currentPkg) {
+			if !seen[resolved] {
+				seen[resolved] = true
+				allImports = append(allImports, resolved)
 			}
 		}
 	}
@@ -180,7 +201,30 @@ func (p *pythonLang) collectImports(dir string, files []string) []string {
 	return allImports
 }
 
+// derivePythonPackage derives a Python package name from a directory path.
+// For example, "src/myapp/utils" -> "myapp.utils" (assuming src is root)
+func derivePythonPackage(dir, repoRoot string) string {
+	rel, err := filepath.Rel(repoRoot, dir)
+	if err != nil {
+		return ""
+	}
+
+	// Skip common source directories
+	rel = strings.TrimPrefix(rel, "src/")
+	rel = strings.TrimPrefix(rel, "lib/")
+	rel = strings.TrimPrefix(rel, "python/")
+
+	if rel == "." || rel == "" {
+		return ""
+	}
+
+	// Convert path separators to dots
+	pkg := strings.ReplaceAll(rel, string(filepath.Separator), ".")
+	return pkg
+}
+
 // findPythonSources finds Python source files in a directory.
+// Returns both .py and .pyi (type stub) files.
 func findPythonSources(dir string, testsOnly bool) []string {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -193,11 +237,16 @@ func findPythonSources(dir string, testsOnly bool) []string {
 			continue
 		}
 		name := entry.Name()
-		if !strings.HasSuffix(name, ".py") {
+
+		// Accept both .py and .pyi files
+		isPy := strings.HasSuffix(name, ".py")
+		isPyi := strings.HasSuffix(name, ".pyi")
+		if !isPy && !isPyi {
 			continue
 		}
-		// Skip __init__.py for source collection (handled separately)
-		if name == "__init__.py" {
+
+		// Skip __init__.py and __init__.pyi for source collection (handled separately)
+		if name == "__init__.py" || name == "__init__.pyi" {
 			continue
 		}
 
@@ -210,6 +259,52 @@ func findPythonSources(dir string, testsOnly bool) []string {
 	}
 
 	return files
+}
+
+// isNamespacePackage checks if a directory is a namespace package (PEP 420).
+// A namespace package is a directory that contains Python files but no __init__.py.
+func isNamespacePackage(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+
+	hasPyFiles := false
+	hasInit := false
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if name == "__init__.py" || name == "__init__.pyi" {
+			hasInit = true
+		}
+		if strings.HasSuffix(name, ".py") && name != "__init__.py" {
+			hasPyFiles = true
+		}
+	}
+
+	return hasPyFiles && !hasInit
+}
+
+// hasTypeStubs checks if a directory contains type stub files (.pyi).
+func hasTypeStubs(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(entry.Name(), ".pyi") {
+			return true
+		}
+	}
+
+	return false
 }
 
 // deriveTargetName derives a target name from the directory path.
@@ -229,10 +324,11 @@ func deriveTargetName(dir, repoRoot string) string {
 }
 
 // getSrcGlobs returns glob patterns for Python source files.
-func getSrcGlobs(files []string) rule.GlobValue {
-	// Use a simple glob pattern for Python files, excluding tests
+// Includes both .py and .pyi (type stub) files.
+func getSrcGlobs() rule.GlobValue {
+	// Use glob patterns for Python files, excluding tests
 	return rule.GlobValue{
-		Patterns: []string{"*.py"},
+		Patterns: []string{"*.py", "*.pyi"},
 		Excludes: []string{"*_test.py", "test_*.py"},
 	}
 }

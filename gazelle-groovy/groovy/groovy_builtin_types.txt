@@ -1,0 +1,28 @@
+# Groovy/Java built-in types that don't need imports
+# These are automatically available in all Groovy code
+String
+Integer
+Long
+Short
+Byte
+Float
+Double
+Boolean
+Character
+Void
+Object
+Class
+Number
+Comparable
+Iterable
+Collection
+List
+Set
+Map
+Array
+BigDecimal
+BigInteger
+Closure
+GString
+Range
+Tuple

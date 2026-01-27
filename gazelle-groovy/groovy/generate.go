@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/albertocavalcante/bazelle/internal/log"
 	"github.com/albertocavalcante/bazelle/pkg/jvm"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
@@ -28,18 +29,18 @@ func (g *groovyLang) GenerateRules(args language.GenerateArgs) language.Generate
 	var imports []interface{}
 
 	if len(mainFiles) > 0 {
-		libRule := g.generateLibraryRule(args, gc)
+		libRule, libImports := g.generateLibraryRule(args, gc, mainFiles)
 		if libRule != nil {
 			rules = append(rules, libRule)
-			imports = append(imports, nil)
+			imports = append(imports, libImports)
 		}
 	}
 
 	if len(testFiles) > 0 {
-		testRule := g.generateTestRule(args, gc, testFiles, len(mainFiles) > 0)
+		testRule, testImports := g.generateTestRule(args, gc, testFiles, len(mainFiles) > 0)
 		if testRule != nil {
 			rules = append(rules, testRule)
-			imports = append(imports, nil)
+			imports = append(imports, testImports)
 		}
 	}
 
@@ -50,7 +51,7 @@ func (g *groovyLang) GenerateRules(args language.GenerateArgs) language.Generate
 }
 
 
-func (g *groovyLang) generateLibraryRule(args language.GenerateArgs, gc *GroovyConfig) *rule.Rule {
+func (g *groovyLang) generateLibraryRule(args language.GenerateArgs, gc *GroovyConfig, files []string) (*rule.Rule, []string) {
 	// Derive target name from directory name using jvm package
 	name := jvm.DeriveTargetName(args.Dir, args.Config.RepoRoot)
 
@@ -60,10 +61,17 @@ func (g *groovyLang) generateLibraryRule(args language.GenerateArgs, gc *GroovyC
 	}})
 	r.SetAttr("visibility", []string{gc.Visibility})
 
-	return r
+	// Parse files to collect imports and packages
+	allImports, packages := g.collectImportsAndPackages(args.Dir, files)
+
+	// Store imports for resolution phase
+	r.SetPrivateAttr("groovy_imports", allImports)
+	r.SetPrivateAttr("groovy_packages", packages)
+
+	return r, allImports
 }
 
-func (g *groovyLang) generateTestRule(args language.GenerateArgs, gc *GroovyConfig, files []string, hasMain bool) *rule.Rule {
+func (g *groovyLang) generateTestRule(args language.GenerateArgs, gc *GroovyConfig, files []string, hasMain bool) (*rule.Rule, []string) {
 	// Derive target name from directory name using jvm package
 	baseName := jvm.DeriveTargetName(args.Dir, args.Config.RepoRoot)
 	name := jvm.DeriveTestTargetName(args.Dir, args.Config.RepoRoot)
@@ -98,7 +106,14 @@ func (g *groovyLang) generateTestRule(args language.GenerateArgs, gc *GroovyConf
 		r.SetAttr("deps", []string{":" + baseName})
 	}
 
-	return r
+	// Parse files to collect imports and packages
+	allImports, packages := g.collectImportsAndPackages(args.Dir, files)
+
+	// Store imports for resolution phase
+	r.SetPrivateAttr("groovy_imports", allImports)
+	r.SetPrivateAttr("groovy_packages", packages)
+
+	return r, allImports
 }
 
 const testGroovyPattern = "src/test/groovy/**/*.groovy"
@@ -128,4 +143,46 @@ func shouldUseSpock(hasSpecFiles bool, gc *GroovyConfig) bool {
 		return false
 	}
 	return hasSpecFiles
+}
+
+// collectImportsAndPackages parses Groovy files and collects imports and packages.
+func (g *groovyLang) collectImportsAndPackages(dir string, files []string) ([]string, []string) {
+	seen := make(map[string]bool)
+	pkgSeen := make(map[string]bool)
+	var allImports []string
+	var packages []string
+
+	for _, file := range files {
+		fullPath := filepath.Join(dir, file)
+		result, err := g.parser.ParseFile(fullPath)
+		if err != nil {
+			log.Warn("failed to parse groovy file",
+				"file", file, "error", err)
+			continue
+		}
+
+		// Collect package
+		if result.Package != "" && !pkgSeen[result.Package] {
+			pkgSeen[result.Package] = true
+			packages = append(packages, result.Package)
+		}
+
+		// Collect all dependencies (imports + FQNs)
+		for _, dep := range result.AllDependencies {
+			if !seen[dep] {
+				seen[dep] = true
+				allImports = append(allImports, dep)
+			}
+		}
+
+		// Also collect star imports
+		for _, starImp := range result.StarImports {
+			if !seen[starImp] {
+				seen[starImp] = true
+				allImports = append(allImports, starImp+".*")
+			}
+		}
+	}
+
+	return allImports, packages
 }

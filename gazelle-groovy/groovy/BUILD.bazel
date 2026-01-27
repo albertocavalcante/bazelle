@@ -5,16 +5,26 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "groovy",
     srcs = [
+        "comment_strip.go",
         "config.go",
         "fix.go",
+        "fqn_scanner.go",
         "generate.go",
         "kinds.go",
         "lang.go",
+        "parser.go",
         "resolve.go",
+        "stdlib.go",
+    ],
+    embedsrcs = [
+        "groovy_builtin_types.txt",
+        "groovy_common_prefixes.txt",
+        "groovy_stdlib_prefixes.txt",
     ],
     importpath = "github.com/albertocavalcante/bazelle/gazelle-groovy/groovy",
     visibility = ["//visibility:public"],
     deps = [
+        "//internal/log",
         "//pkg/jvm",
         "@bazel_gazelle//config",
         "@bazel_gazelle//label",
@@ -27,7 +37,10 @@ go_library(
 
 go_test(
     name = "groovy_test",
-    srcs = ["generate_test.go"],
+    srcs = [
+        "generate_test.go",
+        "parser_test.go",
+    ],
     embed = [":groovy"],
     deps = [
         "//pkg/jvm",

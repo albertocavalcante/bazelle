@@ -9,10 +9,15 @@ go_library(
         "kinds.go",
         "lang.go",
         "parser.go",
+        "pip.go",
         "resolve.go",
         "stdlib.go",
+        "suggestions.go",
     ],
-    embedsrcs = ["stdlib_modules.txt"],
+    embedsrcs = [
+        "pip_known_mappings.txt",
+        "stdlib_modules.txt",
+    ],
     importpath = "github.com/albertocavalcante/bazelle/gazelle-python/python",
     visibility = ["//visibility:public"],
     deps = [
@@ -30,6 +35,7 @@ go_test(
     name = "python_test",
     srcs = [
         "parser_test.go",
+        "pip_test.go",
         "stdlib_test.go",
     ],
     embed = [":python"],
