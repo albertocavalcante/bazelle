@@ -1,0 +1,14 @@
+load("@rules_java//java:defs.bzl", "java_binary", "java_import")
+
+package(default_visibility = ["//visibility:public"])
+
+java_import(
+    name = "copybara_import",
+    jars = ["@copybara_jar//file:copybara_deploy.jar"],
+)
+
+java_binary(
+    name = "copybara",
+    main_class = "com.google.copybara.Main",
+    runtime_deps = [":copybara_import"],
+)

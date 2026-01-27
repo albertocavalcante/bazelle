@@ -1,0 +1,363 @@
+# Copybara Configuration for Bazelle Gazelle Extensions
+# Syncs gazelle-{kotlin,python,groovy}/ subtrees to their respective public repos
+
+sourceUrl = "https://github.com/albertocavalcante/bazelle.git"
+
+# Default authoring for commits made by Copybara
+defaultAuthor = authoring.pass_thru("Eukia[bot] <eukia[bot]@users.noreply.github.com>")
+
+# =============================================================================
+# KOTLIN: bazelle/gazelle-kotlin/ -> gazelle-kotlin
+# Dependencies: internal/log, pkg/jvm, pkg/treesitter
+# =============================================================================
+core.workflow(
+    name = "push-kotlin",
+    origin = git.origin(
+        url = sourceUrl,
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://github.com/albertocavalcante/gazelle-kotlin.git",
+        fetch = "main",
+        push = "main",
+    ),
+    origin_files = glob([
+        "gazelle-kotlin/**",
+        "internal/log/**",
+        "pkg/jvm/**",
+        "pkg/treesitter/**",
+    ]),
+    destination_files = glob(["**"], exclude = [
+        ".github/**",
+        "go.sum",
+    ]),
+    mode = "ITERATIVE",
+    authoring = defaultAuthor,
+    custom_rev_id = "Bazelle-RevId",
+    transformations = [
+        # Move plugin code to root
+        core.move("gazelle-kotlin/", ""),
+        # Move shared dependencies
+        core.move("internal/log/", "internal/log/"),
+        core.move("pkg/jvm/", "pkg/jvm/"),
+        core.move("pkg/treesitter/", "pkg/treesitter/"),
+        # Rewrite import paths
+        core.replace(
+            before = "github.com/albertocavalcante/bazelle/internal/log",
+            after = "github.com/albertocavalcante/gazelle-kotlin/internal/log",
+        ),
+        core.replace(
+            before = "github.com/albertocavalcante/bazelle/pkg/jvm",
+            after = "github.com/albertocavalcante/gazelle-kotlin/pkg/jvm",
+        ),
+        core.replace(
+            before = "github.com/albertocavalcante/bazelle/pkg/treesitter",
+            after = "github.com/albertocavalcante/gazelle-kotlin/pkg/treesitter",
+        ),
+        # Rewrite module path in go.mod
+        core.replace(
+            before = "module github.com/albertocavalcante/bazelle/gazelle-kotlin",
+            after = "module github.com/albertocavalcante/gazelle-kotlin",
+        ),
+    ],
+)
+
+# =============================================================================
+# PYTHON: bazelle/gazelle-python/ -> gazelle-python
+# Dependencies: internal/log only
+# =============================================================================
+core.workflow(
+    name = "push-python",
+    origin = git.origin(
+        url = sourceUrl,
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://github.com/albertocavalcante/gazelle-python.git",
+        fetch = "main",
+        push = "main",
+    ),
+    origin_files = glob([
+        "gazelle-python/**",
+        "internal/log/**",
+    ]),
+    destination_files = glob(["**"], exclude = [
+        ".github/**",
+        "go.sum",
+    ]),
+    mode = "ITERATIVE",
+    authoring = defaultAuthor,
+    custom_rev_id = "Bazelle-RevId",
+    transformations = [
+        # Move plugin code to root
+        core.move("gazelle-python/", ""),
+        # Move shared dependencies
+        core.move("internal/log/", "internal/log/"),
+        # Rewrite import paths
+        core.replace(
+            before = "github.com/albertocavalcante/bazelle/internal/log",
+            after = "github.com/albertocavalcante/gazelle-python/internal/log",
+        ),
+        # Rewrite module path in go.mod
+        core.replace(
+            before = "module github.com/albertocavalcante/bazelle/gazelle-python",
+            after = "module github.com/albertocavalcante/gazelle-python",
+        ),
+    ],
+)
+
+# =============================================================================
+# GROOVY: bazelle/gazelle-groovy/ -> gazelle-groovy
+# Dependencies: internal/log, pkg/jvm
+# =============================================================================
+core.workflow(
+    name = "push-groovy",
+    origin = git.origin(
+        url = sourceUrl,
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://github.com/albertocavalcante/gazelle-groovy.git",
+        fetch = "main",
+        push = "main",
+    ),
+    origin_files = glob([
+        "gazelle-groovy/**",
+        "internal/log/**",
+        "pkg/jvm/**",
+    ]),
+    destination_files = glob(["**"], exclude = [
+        ".github/**",
+        "go.sum",
+    ]),
+    mode = "ITERATIVE",
+    authoring = defaultAuthor,
+    custom_rev_id = "Bazelle-RevId",
+    transformations = [
+        # Move plugin code to root
+        core.move("gazelle-groovy/", ""),
+        # Move shared dependencies
+        core.move("internal/log/", "internal/log/"),
+        core.move("pkg/jvm/", "pkg/jvm/"),
+        # Rewrite import paths
+        core.replace(
+            before = "github.com/albertocavalcante/bazelle/internal/log",
+            after = "github.com/albertocavalcante/gazelle-groovy/internal/log",
+        ),
+        core.replace(
+            before = "github.com/albertocavalcante/bazelle/pkg/jvm",
+            after = "github.com/albertocavalcante/gazelle-groovy/pkg/jvm",
+        ),
+        # Rewrite module path in go.mod
+        core.replace(
+            before = "module github.com/albertocavalcante/bazelle/gazelle-groovy",
+            after = "module github.com/albertocavalcante/gazelle-groovy",
+        ),
+    ],
+)
+
+# =============================================================================
+# PULL WORKFLOWS: Public repos -> bazelle monorepo (for bidirectional sync)
+# =============================================================================
+
+core.workflow(
+    name = "pull-kotlin",
+    origin = git.origin(
+        url = "https://github.com/albertocavalcante/gazelle-kotlin.git",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = sourceUrl,
+        fetch = "main",
+        push = "main",
+    ),
+    origin_files = glob(["**"], exclude = [
+        ".github/**",
+        "internal/log/**",
+        "pkg/jvm/**",
+        "pkg/treesitter/**",
+        "go.mod",
+        "go.sum",
+    ]),
+    destination_files = glob(["gazelle-kotlin/**"]),
+    mode = "ITERATIVE",
+    authoring = defaultAuthor,
+    custom_rev_id = "GazelleKotlin-RevId",
+    transformations = [
+        # Move to monorepo location
+        core.move("", "gazelle-kotlin/"),
+        # Rewrite import paths back to monorepo
+        core.replace(
+            before = "github.com/albertocavalcante/gazelle-kotlin/internal/log",
+            after = "github.com/albertocavalcante/bazelle/internal/log",
+        ),
+        core.replace(
+            before = "github.com/albertocavalcante/gazelle-kotlin/pkg/jvm",
+            after = "github.com/albertocavalcante/bazelle/pkg/jvm",
+        ),
+        core.replace(
+            before = "github.com/albertocavalcante/gazelle-kotlin/pkg/treesitter",
+            after = "github.com/albertocavalcante/bazelle/pkg/treesitter",
+        ),
+    ],
+)
+
+core.workflow(
+    name = "pull-python",
+    origin = git.origin(
+        url = "https://github.com/albertocavalcante/gazelle-python.git",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = sourceUrl,
+        fetch = "main",
+        push = "main",
+    ),
+    origin_files = glob(["**"], exclude = [
+        ".github/**",
+        "internal/log/**",
+        "go.mod",
+        "go.sum",
+    ]),
+    destination_files = glob(["gazelle-python/**"]),
+    mode = "ITERATIVE",
+    authoring = defaultAuthor,
+    custom_rev_id = "GazellePython-RevId",
+    transformations = [
+        # Move to monorepo location
+        core.move("", "gazelle-python/"),
+        # Rewrite import paths back to monorepo
+        core.replace(
+            before = "github.com/albertocavalcante/gazelle-python/internal/log",
+            after = "github.com/albertocavalcante/bazelle/internal/log",
+        ),
+    ],
+)
+
+core.workflow(
+    name = "pull-groovy",
+    origin = git.origin(
+        url = "https://github.com/albertocavalcante/gazelle-groovy.git",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = sourceUrl,
+        fetch = "main",
+        push = "main",
+    ),
+    origin_files = glob(["**"], exclude = [
+        ".github/**",
+        "internal/log/**",
+        "pkg/jvm/**",
+        "go.mod",
+        "go.sum",
+    ]),
+    destination_files = glob(["gazelle-groovy/**"]),
+    mode = "ITERATIVE",
+    authoring = defaultAuthor,
+    custom_rev_id = "GazelleGroovy-RevId",
+    transformations = [
+        # Move to monorepo location
+        core.move("", "gazelle-groovy/"),
+        # Rewrite import paths back to monorepo
+        core.replace(
+            before = "github.com/albertocavalcante/gazelle-groovy/internal/log",
+            after = "github.com/albertocavalcante/bazelle/internal/log",
+        ),
+        core.replace(
+            before = "github.com/albertocavalcante/gazelle-groovy/pkg/jvm",
+            after = "github.com/albertocavalcante/bazelle/pkg/jvm",
+        ),
+    ],
+)
+
+# =============================================================================
+# VALIDATE: Dry-run workflows for testing
+# =============================================================================
+
+core.workflow(
+    name = "validate-kotlin",
+    origin = git.origin(
+        url = sourceUrl,
+        ref = "main",
+    ),
+    destination = folder.destination(),
+    origin_files = glob([
+        "gazelle-kotlin/**",
+        "internal/log/**",
+        "pkg/jvm/**",
+        "pkg/treesitter/**",
+    ]),
+    mode = "SQUASH",
+    authoring = defaultAuthor,
+    transformations = [
+        core.move("gazelle-kotlin/", ""),
+        core.move("internal/log/", "internal/log/"),
+        core.move("pkg/jvm/", "pkg/jvm/"),
+        core.move("pkg/treesitter/", "pkg/treesitter/"),
+        core.replace(
+            before = "github.com/albertocavalcante/bazelle/internal/log",
+            after = "github.com/albertocavalcante/gazelle-kotlin/internal/log",
+        ),
+        core.replace(
+            before = "github.com/albertocavalcante/bazelle/pkg/jvm",
+            after = "github.com/albertocavalcante/gazelle-kotlin/pkg/jvm",
+        ),
+        core.replace(
+            before = "github.com/albertocavalcante/bazelle/pkg/treesitter",
+            after = "github.com/albertocavalcante/gazelle-kotlin/pkg/treesitter",
+        ),
+    ],
+)
+
+core.workflow(
+    name = "validate-python",
+    origin = git.origin(
+        url = sourceUrl,
+        ref = "main",
+    ),
+    destination = folder.destination(),
+    origin_files = glob([
+        "gazelle-python/**",
+        "internal/log/**",
+    ]),
+    mode = "SQUASH",
+    authoring = defaultAuthor,
+    transformations = [
+        core.move("gazelle-python/", ""),
+        core.move("internal/log/", "internal/log/"),
+        core.replace(
+            before = "github.com/albertocavalcante/bazelle/internal/log",
+            after = "github.com/albertocavalcante/gazelle-python/internal/log",
+        ),
+    ],
+)
+
+core.workflow(
+    name = "validate-groovy",
+    origin = git.origin(
+        url = sourceUrl,
+        ref = "main",
+    ),
+    destination = folder.destination(),
+    origin_files = glob([
+        "gazelle-groovy/**",
+        "internal/log/**",
+        "pkg/jvm/**",
+    ]),
+    mode = "SQUASH",
+    authoring = defaultAuthor,
+    transformations = [
+        core.move("gazelle-groovy/", ""),
+        core.move("internal/log/", "internal/log/"),
+        core.move("pkg/jvm/", "pkg/jvm/"),
+        core.replace(
+            before = "github.com/albertocavalcante/bazelle/internal/log",
+            after = "github.com/albertocavalcante/gazelle-groovy/internal/log",
+        ),
+        core.replace(
+            before = "github.com/albertocavalcante/bazelle/pkg/jvm",
+            after = "github.com/albertocavalcante/gazelle-groovy/pkg/jvm",
+        ),
+    ],
+)

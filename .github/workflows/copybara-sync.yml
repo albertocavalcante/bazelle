@@ -1,0 +1,211 @@
+name: Copybara Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "gazelle-kotlin/**"
+      - "gazelle-python/**"
+      - "gazelle-groovy/**"
+      - "internal/log/**"
+      - "pkg/jvm/**"
+      - "pkg/treesitter/**"
+      - "infra/copybara/**"
+  workflow_dispatch:
+    inputs:
+      plugin:
+        description: "Plugin to sync (kotlin, python, groovy, or all)"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - kotlin
+          - python
+          - groovy
+      dry_run:
+        description: "Dry run (validate only, no push)"
+        required: false
+        default: false
+        type: boolean
+      init_history:
+        description: "Initialize history (first-time sync, migrates all commits)"
+        required: false
+        default: false
+        type: boolean
+      last_rev:
+        description: "Last revision SHA (advanced: override starting point)"
+        required: false
+        default: ""
+        type: string
+      force:
+        description: "Force push (dangerous: may overwrite destination changes)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  # Detect which plugins changed (for push events)
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      kotlin: ${{ steps.changes.outputs.kotlin }}
+      python: ${{ steps.changes.outputs.python }}
+      groovy: ${{ steps.changes.outputs.groovy }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed paths
+        id: changes
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Manual trigger - use input
+            PLUGIN="${{ inputs.plugin }}"
+            if [[ "$PLUGIN" == "all" ]]; then
+              echo "kotlin=true" >> "$GITHUB_OUTPUT"
+              echo "python=true" >> "$GITHUB_OUTPUT"
+              echo "groovy=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "kotlin=$([[ "$PLUGIN" == "kotlin" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+              echo "python=$([[ "$PLUGIN" == "python" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+              echo "groovy=$([[ "$PLUGIN" == "groovy" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            # Push event - detect from changed files
+            CHANGED=$(git diff --name-only HEAD~1 HEAD)
+
+            # Kotlin: gazelle-kotlin/, internal/log/, pkg/jvm/, pkg/treesitter/
+            if echo "$CHANGED" | grep -qE "^(gazelle-kotlin/|internal/log/|pkg/jvm/|pkg/treesitter/)"; then
+              echo "kotlin=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "kotlin=false" >> "$GITHUB_OUTPUT"
+            fi
+
+            # Python: gazelle-python/, internal/log/
+            if echo "$CHANGED" | grep -qE "^(gazelle-python/|internal/log/)"; then
+              echo "python=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "python=false" >> "$GITHUB_OUTPUT"
+            fi
+
+            # Groovy: gazelle-groovy/, internal/log/, pkg/jvm/
+            if echo "$CHANGED" | grep -qE "^(gazelle-groovy/|internal/log/|pkg/jvm/)"; then
+              echo "groovy=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "groovy=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+  # Sync Kotlin
+  sync-kotlin:
+    name: Sync Kotlin
+    needs: detect-changes
+    if: needs.detect-changes.outputs.kotlin == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate Eukia App Token
+        id: eukia
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ secrets.EUKIA_APP_ID }}
+          private-key: ${{ secrets.EUKIA_APP_PRIVATE_KEY }}
+          owner: albertocavalcante
+          repositories: bazelle,gazelle-kotlin
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ steps.eukia.outputs.token }}
+
+      - name: Run Copybara
+        uses: albertocavalcante/actions/run-copybara@main
+        with:
+          config-file: infra/copybara/copy.bara.sky
+          workflow: push-kotlin
+          destination-url: https://github.com/albertocavalcante/gazelle-kotlin.git
+          init-history: ${{ inputs.init_history }}
+          last-rev: ${{ inputs.last_rev }}
+          force: ${{ inputs.force }}
+          dry-run: ${{ inputs.dry_run }}
+          git-token: ${{ steps.eukia.outputs.token }}
+          git-user-name: "Eukia[bot]"
+          git-user-email: "eukia[bot]@users.noreply.github.com"
+
+  # Sync Python
+  sync-python:
+    name: Sync Python
+    needs: detect-changes
+    if: needs.detect-changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate Eukia App Token
+        id: eukia
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ secrets.EUKIA_APP_ID }}
+          private-key: ${{ secrets.EUKIA_APP_PRIVATE_KEY }}
+          owner: albertocavalcante
+          repositories: bazelle,gazelle-python
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ steps.eukia.outputs.token }}
+
+      - name: Run Copybara
+        uses: albertocavalcante/actions/run-copybara@main
+        with:
+          config-file: infra/copybara/copy.bara.sky
+          workflow: push-python
+          destination-url: https://github.com/albertocavalcante/gazelle-python.git
+          init-history: ${{ inputs.init_history }}
+          last-rev: ${{ inputs.last_rev }}
+          force: ${{ inputs.force }}
+          dry-run: ${{ inputs.dry_run }}
+          git-token: ${{ steps.eukia.outputs.token }}
+          git-user-name: "Eukia[bot]"
+          git-user-email: "eukia[bot]@users.noreply.github.com"
+
+  # Sync Groovy
+  sync-groovy:
+    name: Sync Groovy
+    needs: detect-changes
+    if: needs.detect-changes.outputs.groovy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate Eukia App Token
+        id: eukia
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ secrets.EUKIA_APP_ID }}
+          private-key: ${{ secrets.EUKIA_APP_PRIVATE_KEY }}
+          owner: albertocavalcante
+          repositories: bazelle,gazelle-groovy
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ steps.eukia.outputs.token }}
+
+      - name: Run Copybara
+        uses: albertocavalcante/actions/run-copybara@main
+        with:
+          config-file: infra/copybara/copy.bara.sky
+          workflow: push-groovy
+          destination-url: https://github.com/albertocavalcante/gazelle-groovy.git
+          init-history: ${{ inputs.init_history }}
+          last-rev: ${{ inputs.last_rev }}
+          force: ${{ inputs.force }}
+          dry-run: ${{ inputs.dry_run }}
+          git-token: ${{ steps.eukia.outputs.token }}
+          git-user-name: "Eukia[bot]"
+          git-user-email: "eukia[bot]@users.noreply.github.com"
