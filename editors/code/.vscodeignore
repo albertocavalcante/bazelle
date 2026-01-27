@@ -1,0 +1,11 @@
+# Deny everything by default
+**
+
+# Allow only what we need
+!LICENSE
+!README.md
+!package.json
+!language-configuration.json
+!out/extension.js
+!syntaxes/starlark.tmLanguage.json
+!bin/**

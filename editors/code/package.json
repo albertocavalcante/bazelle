@@ -1,0 +1,178 @@
+{
+  "name": "bazelle",
+  "displayName": "Bazelle - BUILD File Generator",
+  "description": "VSCode integration for Bazelle, a polyglot BUILD file generator for Bazel",
+  "version": "0.1.0",
+  "publisher": "bazelle",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "bazel",
+    "gazelle",
+    "build",
+    "starlark",
+    "go",
+    "kotlin",
+    "python",
+    "proto"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/BUILD.bazel",
+    "workspaceContains:**/BUILD",
+    "workspaceContains:**/MODULE.bazel",
+    "workspaceContains:**/WORKSPACE",
+    "workspaceContains:**/WORKSPACE.bazel",
+    "workspaceContains:**/.bazelle/config.toml"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "bazelle.update",
+        "title": "Bazelle: Update BUILD Files"
+      },
+      {
+        "command": "bazelle.updateIncremental",
+        "title": "Bazelle: Update BUILD Files (Incremental)"
+      },
+      {
+        "command": "bazelle.fix",
+        "title": "Bazelle: Fix BUILD Files"
+      },
+      {
+        "command": "bazelle.fixDryRun",
+        "title": "Bazelle: Fix BUILD Files (Dry Run)"
+      },
+      {
+        "command": "bazelle.status",
+        "title": "Bazelle: Show Status"
+      },
+      {
+        "command": "bazelle.watch",
+        "title": "Bazelle: Start Watch Mode"
+      },
+      {
+        "command": "bazelle.stopWatch",
+        "title": "Bazelle: Stop Watch Mode"
+      },
+      {
+        "command": "bazelle.init",
+        "title": "Bazelle: Initialize Project"
+      },
+      {
+        "command": "bazelle.showOutput",
+        "title": "Bazelle: Show Output"
+      },
+      {
+        "command": "bazelle.showStatusMenu",
+        "title": "Bazelle: Show Status Menu"
+      },
+      {
+        "command": "bazelle.downloadBinary",
+        "title": "Bazelle: Download Binary"
+      }
+    ],
+    "configuration": {
+      "title": "Bazelle",
+      "properties": {
+        "bazelle.path": {
+          "type": "string",
+          "default": "bazelle",
+          "description": "Path to the bazelle executable"
+        },
+        "bazelle.autoUpdate": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically update BUILD files on save"
+        },
+        "bazelle.statusBar.show": {
+          "type": "string",
+          "enum": [
+            "always",
+            "onBazelWorkspace",
+            "never"
+          ],
+          "default": "onBazelWorkspace",
+          "enumDescriptions": [
+            "Always show the status bar item",
+            "Only show in Bazel workspaces",
+            "Never show the status bar item"
+          ],
+          "description": "When to show the Bazelle status bar item"
+        },
+        "bazelle.watch.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable watch mode on startup"
+        },
+        "bazelle.watch.debounceMs": {
+          "type": "number",
+          "default": 500,
+          "description": "Debounce delay for watch mode in milliseconds"
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "starlark",
+        "aliases": [
+          "Starlark",
+          "BUILD"
+        ],
+        "extensions": [
+          ".bzl",
+          ".bazel"
+        ],
+        "filenames": [
+          "BUILD",
+          "BUILD.bazel",
+          "WORKSPACE",
+          "WORKSPACE.bazel",
+          "MODULE.bazel"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "starlark",
+        "scopeName": "source.starlark",
+        "path": "./syntaxes/starlark.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "bun run build",
+    "build": "bun run esbuild.ts",
+    "build:prod": "bun run esbuild.ts --production",
+    "watch": "bun run esbuild.ts --watch",
+    "package": "vsce package --no-dependencies",
+    "lint": "biome check src/",
+    "lint:fix": "biome check --fix src/",
+    "format": "biome format --write src/",
+    "format:check": "biome format src/",
+    "typecheck": "tsc --noEmit",
+    "check": "bun run typecheck && bun run lint && bun run format:check",
+    "clean": "rm -rf out/ *.vsix"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/bun": "^1.2.4",
+    "@types/node": "^22.13.4",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.2",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.7.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/albertocavalcante/bazelle.git",
+    "directory": "editors/code"
+  }
+}

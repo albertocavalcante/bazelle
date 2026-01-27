@@ -90,3 +90,45 @@ jobs:
           filter_mode: nofilter
           reporter: github-pr-review
 
+  vscode-extension:
+    runs-on: ubuntu-24.04
+    name: VSCode Extension
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: editors/code
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        working-directory: editors/code
+        run: bun run typecheck
+
+      - name: Lint
+        working-directory: editors/code
+        run: bun run lint
+
+      - name: Format check
+        working-directory: editors/code
+        run: bun run format:check
+
+      - name: Build
+        working-directory: editors/code
+        run: bun run build:prod
+
+      - name: Package extension
+        working-directory: editors/code
+        run: bun run package
+

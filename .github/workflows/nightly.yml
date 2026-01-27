@@ -1,27 +1,90 @@
-name: Release
+name: Nightly
 
 on:
-  push:
-    tags:
-      - 'v*'
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force build even if no changes"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
+env:
+  BINARY_NAME: bazelle
+
 jobs:
+  check-changes:
+    runs-on: ubuntu-24.04
+    name: Check for Changes
+    timeout-minutes: 5
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+      short_sha: ${{ steps.check.outputs.short_sha }}
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check for changes
+        id: check
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ inputs.force }}" == "true" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "Force build requested"
+            exit 0
+          fi
+
+          if git rev-parse nightly >/dev/null 2>&1; then
+            NIGHTLY_SHA=$(git rev-parse nightly)
+            HEAD_SHA=$(git rev-parse HEAD)
+            if [ "$NIGHTLY_SHA" == "$HEAD_SHA" ]; then
+              echo "should_build=false" >> "$GITHUB_OUTPUT"
+              echo "No changes since last nightly"
+            else
+              echo "should_build=true" >> "$GITHUB_OUTPUT"
+              echo "Changes detected"
+            fi
+          else
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "No previous nightly"
+          fi
+
   build-binary:
+    needs: check-changes
+    if: needs.check-changes.outputs.should_build == 'true'
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-24.04
             name: linux-amd64
+            goos: linux
+            goarch: amd64
           - os: ubuntu-24.04-arm
             name: linux-arm64
+            goos: linux
+            goarch: arm64
           - os: macos-14
             name: darwin-arm64
+            goos: darwin
+            goarch: arm64
           - os: windows-2022
             name: windows-amd64
+            goos: windows
+            goarch: amd64
+            ext: .exe
 
     runs-on: ${{ matrix.os }}
     name: Build (${{ matrix.name }})
@@ -39,7 +102,7 @@ jobs:
         uses: bazel-contrib/setup-bazel@e8776f58fb6a6e9055cbaf1b38c52ccc5247e9c4 # 0.14.0
         with:
           bazelisk-cache: true
-          disk-cache: ${{ github.workflow }}
+          disk-cache: ${{ github.workflow }}-${{ matrix.name }}
           repository-cache: true
 
       - name: Build
@@ -74,9 +137,9 @@ jobs:
           name: binary-${{ matrix.name }}
           path: dist/bazelle-${{ matrix.name }}.*
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 3
 
-      # Raw binary for vsix
+      # Also upload raw binary for vsix bundling
       - name: Prepare raw binary (Unix)
         if: runner.os != 'Windows'
         run: |
@@ -100,7 +163,8 @@ jobs:
           retention-days: 1
 
   build-vscode:
-    needs: build-binary
+    needs: [check-changes, build-binary]
+    if: needs.check-changes.outputs.should_build == 'true'
     runs-on: ubuntu-24.04
     name: Build VSCode Extension
     timeout-minutes: 15
@@ -119,6 +183,9 @@ jobs:
           pattern: bin-*
           path: editors/code/bin
           merge-multiple: true
+
+      - name: List bundled binaries
+        run: find editors/code/bin -type f | head -20
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
@@ -140,38 +207,39 @@ jobs:
       - name: Update version
         working-directory: editors/code
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          jq ".version = \"${VERSION}\"" package.json > tmp.json
+          SHORT_SHA="${{ needs.check-changes.outputs.short_sha }}"
+          DATE=$(date +%Y%m%d)
+          jq ".version = \"0.1.0-nightly.${DATE}.${SHORT_SHA}\"" package.json > tmp.json
           mv tmp.json package.json
 
       - name: Package
         working-directory: editors/code
         run: bun run package
 
-      - name: Rename
+      - name: Rename and checksum
         working-directory: editors/code
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          mv *.vsix "bazelle-${VERSION}.vsix"
-          sha256sum "bazelle-${VERSION}.vsix" > "bazelle-${VERSION}.vsix.sha256"
+          mv *.vsix bazelle-nightly.vsix
+          sha256sum bazelle-nightly.vsix > bazelle-nightly.vsix.sha256
 
       - name: Upload
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: vscode-extension
           path: |
-            editors/code/bazelle-*.vsix
-            editors/code/bazelle-*.vsix.sha256
+            editors/code/bazelle-nightly.vsix
+            editors/code/bazelle-nightly.vsix.sha256
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 3
 
   release:
-    needs: [build-binary, build-vscode]
+    needs: [check-changes, build-binary, build-vscode]
     runs-on: ubuntu-24.04
     name: Create Release
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: write
+    if: always() && needs.check-changes.outputs.should_build == 'true' && needs.build-binary.result == 'success'
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -190,12 +258,60 @@ jobs:
           find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.vsix" -o -name "*.sha256" \) ! -path "*/bin-*/*" -exec cp {} release/ \;
           ls -la release/
 
-      - name: Create Release
+      - name: Generate notes
+        run: |
+          cat > notes.md << 'EOF'
+          ## Nightly Build
+
+          **Commit:** `${{ needs.check-changes.outputs.short_sha }}`
+          **Date:** $(date +%Y-%m-%d)
+
+          Automated nightly build from `main`. May be unstable.
+
+          ### CLI Installation
+
+          ```bash
+          # macOS (Apple Silicon)
+          curl -fsSL https://github.com/albertocavalcante/bazelle/releases/download/nightly/bazelle-darwin-arm64.tar.gz | tar xz
+          sudo mv bazelle /usr/local/bin/
+
+          # Linux (x64)
+          curl -fsSL https://github.com/albertocavalcante/bazelle/releases/download/nightly/bazelle-linux-amd64.tar.gz | tar xz
+          sudo mv bazelle /usr/local/bin/
+
+          # Windows (PowerShell)
+          Invoke-WebRequest -Uri https://github.com/albertocavalcante/bazelle/releases/download/nightly/bazelle-windows-amd64.zip -OutFile bazelle.zip
+          Expand-Archive bazelle.zip -DestinationPath .
+          ```
+
+          ### VSCode Extension
+
+          ```bash
+          curl -fsSLO https://github.com/albertocavalcante/bazelle/releases/download/nightly/bazelle-nightly.vsix
+          code --install-extension bazelle-nightly.vsix
+          ```
+
+          ### Checksums
+          ```
+          EOF
+          cat release/*.sha256 >> notes.md
+          echo '```' >> notes.md
+
+      - name: Delete old release
+        run: |
+          gh release delete nightly --yes || true
+          git push origin :refs/tags/nightly || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
+          tag_name: nightly
+          name: Nightly Build
           draft: false
-          prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
-          generate_release_notes: true
+          prerelease: true
+          body_path: notes.md
           files: release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
