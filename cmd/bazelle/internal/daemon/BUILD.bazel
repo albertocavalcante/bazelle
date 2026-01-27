@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "daemon",
+    srcs = [
+        "client.go",
+        "handler.go",
+        "lifecycle.go",
+        "protocol.go",
+        "server.go",
+    ],
+    importpath = "github.com/albertocavalcante/bazelle/cmd/bazelle/internal/daemon",
+    visibility = ["//cmd/bazelle:__subpackages__"],
+    deps = [
+        "//cmd/bazelle/internal/watch",
+        "//internal/log",
+        "@bazel_gazelle//language",
+    ],
+)
