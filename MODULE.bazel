@@ -96,6 +96,18 @@ bazel_dep(name = "rules_java", version = "9.3.0")
 bazel_dep(name = "rules_jvm_external", version = "6.9")
 bazel_dep(name = "contrib_rules_jvm", version = "0.32.0")
 
+# Suppress warning about maven contributions from multiple modules
+# See: https://github.com/bazel-contrib/rules_jvm_external/blob/master/docs/bzlmod.md#module-dependency-layering
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    known_contributing_modules = [
+        "build_stack_rules_proto",
+        "build_stack_scala_gazelle",
+        "grpc-java",
+        "protobuf",
+    ],
+)
+
 # ==============================================================================
 # Python Support (rules_python gazelle plugin)
 # ==============================================================================
