@@ -8,6 +8,12 @@ on:
 permissions:
   contents: write
 
+env:
+  # Windows builds disabled due to CGO/nogo type-checking issues with go-tree-sitter.
+  # The nogo static analyzer can't resolve CGO types on Windows, causing build failures.
+  # TODO: Re-enable when we add cross-compilation from Linux using zig-cc toolchain.
+  SKIP_WINDOWS: "true"
+
 jobs:
   build-binary:
     strategy:
@@ -30,22 +36,35 @@ jobs:
       contents: read
 
     steps:
+      # Skip Windows builds until CGO/nogo issues are resolved
+      # The go-tree-sitter CGO library fails nogo type-checking on Windows
+      # Error: "undefined: Node" in iter.go during nogo analysis
+      - name: Skip Windows (temporary)
+        if: runner.os == 'Windows'
+        run: |
+          echo "::warning::Windows builds temporarily disabled due to CGO/nogo type-checking issues"
+          echo "The go-tree-sitter library uses CGO which fails nogo analysis on Windows."
+          echo "TODO: Fix by either:"
+          echo "  1. Cross-compile from Linux using zig-cc toolchain"
+          echo "  2. Disable nogo for external CGO dependencies on Windows"
+          echo "  3. Use pure Go tree-sitter backend (wazero) for Windows"
+          exit 0
+
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        if: runner.os != 'Windows'
         with:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Rust (Windows)
-        if: runner.os == 'Windows'
-        uses: dtolnay/rust-toolchain@stable
-
       - name: Setup Bazelisk
+        if: runner.os != 'Windows'
         uses: bazel-contrib/setup-bazel@77a1d3d18379c7cb0a7e3b9fcaaa4d94f1029763 # 0.18.0
         with:
           bazelisk-cache: true
           external-cache: true
 
       - name: Build
+        if: runner.os != 'Windows'
         run: bazel build //cmd/bazelle --config=ci
 
       - name: Prepare artifact (Unix)
@@ -60,7 +79,7 @@ jobs:
           rm bazelle
 
       - name: Prepare artifact (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && env.SKIP_WINDOWS != 'true'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist
@@ -72,6 +91,7 @@ jobs:
           Remove-Item "bazelle.exe"
 
       - name: Upload artifact
+        if: runner.os != 'Windows'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: binary-${{ matrix.name }}
@@ -79,7 +99,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # Raw binary for vsix
+      # Raw binary for vsix bundling
       - name: Prepare raw binary (Unix)
         if: runner.os != 'Windows'
         run: |
@@ -88,13 +108,14 @@ jobs:
           chmod +x bin/${{ matrix.name }}/bazelle
 
       - name: Prepare raw binary (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && env.SKIP_WINDOWS != 'true'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "bin/${{ matrix.name }}"
           Copy-Item "bazel-bin/cmd/bazelle/bazelle_/bazelle.exe" -Destination "bin/${{ matrix.name }}/"
 
       - name: Upload raw binary
+        if: runner.os != 'Windows'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: bin-${{ matrix.name }}
