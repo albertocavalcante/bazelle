@@ -25,3 +25,6 @@ user.bazelrc
 docs/node_modules/
 docs/dist/
 docs/.astro/
+
+# Playwright MCP
+.playwright-mcp/

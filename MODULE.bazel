@@ -27,8 +27,8 @@ bazel_dep(name = "buildifier_prebuilt", version = "8.2.1.1", dev_dependency = Tr
 bazel_dep(name = "bazel_env.bzl", version = "0.6.0", dev_dependency = True)
 git_override(
     module_name = "bazel_env.bzl",
+    commit = "ca8da69d603f09b3691d780fe53992e36261a077",  # v0.6.0
     remote = "https://github.com/buildbuddy-io/bazel_env.bzl.git",
-    tag = "v0.6.0",
 )
 
 bazel_dep(name = "platforms", version = "1.0.0")
@@ -118,6 +118,7 @@ GAZELLE_RUST_COMMIT = "c029702902b753413f80b0549982c32912aa508a"
 
 archive_override(
     module_name = "gazelle_rust",
+    integrity = "sha256-lBLX7eNrCNrFF1701ML1AaNMIQjocmRrE8xuOqwstmM=",
     patches = ["//third_party/patches/gazelle_rust:bzlmod_compat.patch"],
     strip_prefix = "gazelle_rust-{}".format(GAZELLE_RUST_COMMIT),
     urls = ["https://github.com/Calsign/gazelle_rust/archive/{}.zip".format(GAZELLE_RUST_COMMIT)],
