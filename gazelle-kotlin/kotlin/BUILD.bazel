@@ -19,6 +19,11 @@ go_library(
         "parser_backend.go",
         "resolve.go",
     ],
+    embedsrcs = [
+        "kotlin_builtin_types.txt",
+        "kotlin_common_prefixes.txt",
+        "kotlin_stdlib_prefixes.txt",
+    ],
     importpath = "github.com/albertocavalcante/bazelle/gazelle-kotlin/kotlin",
     visibility = ["//visibility:public"],
     deps = [
