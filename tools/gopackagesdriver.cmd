@@ -1,3 +1,4 @@
+#!/bin/bash
 :<<"::CMDLITERAL"
 @ECHO OFF
 GOTO :CMDSCRIPT
