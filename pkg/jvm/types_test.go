@@ -11,9 +11,9 @@ func TestLanguageFileExtensions(t *testing.T) {
 		want []string
 	}{
 		{Kotlin, []string{".kt", ".kts"}},
-		{Groovy, []string{".groovy"}},
+		{Groovy, []string{".groovy", ".gvy", ".gy", ".gsh"}},
 		{Java, []string{".java"}},
-		{Scala, []string{".scala"}},
+		{Scala, []string{".scala", ".sc"}},
 	}
 
 	for _, tt := range tests {
@@ -114,6 +114,17 @@ func TestLanguageGlobPatterns(t *testing.T) {
 			"src/test/groovy",
 			[]string{
 				filepath.Join("src/test/groovy", "**", "*.groovy"),
+				filepath.Join("src/test/groovy", "**", "*.gvy"),
+				filepath.Join("src/test/groovy", "**", "*.gy"),
+				filepath.Join("src/test/groovy", "**", "*.gsh"),
+			},
+		},
+		{
+			Scala,
+			"src/main/scala",
+			[]string{
+				filepath.Join("src/main/scala", "**", "*.scala"),
+				filepath.Join("src/main/scala", "**", "*.sc"),
 			},
 		},
 	}

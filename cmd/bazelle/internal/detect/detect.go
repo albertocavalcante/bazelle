@@ -1,4 +1,24 @@
 // Package detect provides language detection for bazel projects.
+//
+// # Detection Algorithm
+//
+// Language detection is DETERMINISTIC: given the same directory contents,
+// it always produces the same list of detected languages. The algorithm:
+//
+//  1. Walk the directory tree, skipping ignored directories
+//  2. For each file, check if its extension matches a known language
+//  3. Return the deduplicated, sorted list of detected languages
+//
+// # Extension Mapping
+//
+// This package uses langs.Extensions as the source of truth for mapping
+// file extensions to language names. See the langs package for the
+// complete list of supported extensions.
+//
+// # Ignored Directories
+//
+// Certain directories are skipped during detection to avoid false positives
+// from build outputs, vendored code, and generated files. See langs.IgnoredDirs.
 package detect
 
 import (
@@ -6,30 +26,21 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/albertocavalcante/bazelle/cmd/bazelle/internal/langs"
 )
 
-// Language extensions mapping
-var langExtensions = map[string][]string{
-	"go":     {".go"},
-	"kotlin": {".kt", ".kts"},
-	"java":   {".java"},
-	"python": {".py"},
-	"proto":  {".proto"},
-	"groovy": {".groovy"},
-	"cc":     {".cc", ".cpp", ".cxx", ".c", ".h", ".hpp", ".hxx"},
-}
-
-// ignoredDirs contains directory prefixes to skip during scanning.
-var ignoredDirs = []string{
-	"bazel-",
-	".",
-	"node_modules",
-	"__pycache__",
-	"vendor",
-}
-
 // Languages detects programming languages used in the given directory.
-// It returns a sorted slice of language identifiers.
+//
+// This function is DETERMINISTIC: given the same directory contents,
+// it always returns the same sorted list of language identifiers.
+//
+// The detection is based purely on file extensions, not file contents.
+// A language is detected if at least one file with a matching extension exists.
+//
+// Extension mappings are defined in langs.Extensions (single source of truth).
+//
+// Returns a sorted slice of language identifiers (e.g., ["go", "kotlin", "proto"]).
 func Languages(root string) ([]string, error) {
 	found := make(map[string]bool)
 
@@ -38,10 +49,10 @@ func Languages(root string) ([]string, error) {
 			return err
 		}
 
-		// Skip ignored directories
+		// Skip ignored directories (using shared list from langs package)
 		if d.IsDir() {
 			name := d.Name()
-			for _, prefix := range ignoredDirs {
+			for _, prefix := range langs.IgnoredDirs {
 				if strings.HasPrefix(name, prefix) {
 					return filepath.SkipDir
 				}
@@ -55,7 +66,8 @@ func Languages(root string) ([]string, error) {
 			return nil
 		}
 
-		for lang, exts := range langExtensions {
+		// Use langs.Extensions as single source of truth
+		for lang, exts := range langs.Extensions {
 			if slices.Contains(exts, ext) {
 				found[lang] = true
 				break

@@ -8,6 +8,9 @@ import (
 )
 
 // ParseResult contains the result of parsing a Python file.
+//
+// All fields are populated using HEURISTIC parsing. Results are accurate
+// for conventional Python code but may be incorrect for edge cases.
 type ParseResult struct {
 	// Imports is the list of imported modules.
 	Imports []string
@@ -20,36 +23,73 @@ type ParseResult struct {
 	HasMainBlock bool
 
 	// IsTestFile indicates if the file appears to be a test file.
+	// This is a HEURISTIC based on filename patterns (test_*.py, *_test.py).
 	IsTestFile bool
 }
 
-// PythonParser parses Python files to extract import information.
+// PythonParser provides HEURISTIC parsing of Python source files using regex.
+//
+// # Heuristic Parsing
+//
+// This parser uses regular expressions to extract import metadata from Python
+// files. While regex cannot fully parse Python's grammar, the patterns are
+// designed to handle common import patterns with high accuracy.
+//
+// The heuristic approach trades theoretical correctness for practical benefits:
+//   - No external dependencies (pure Go)
+//   - Fast parsing (single pass)
+//   - Sufficient for most real-world Python code
+//
+// # Known Limitations
+//
+// The following edge cases may produce incorrect results:
+//   - Import statements inside multi-line strings are matched as real imports
+//   - Multi-line import statements with unusual formatting may be missed
+//   - Conditional imports (inside if/try blocks) are treated as regular imports
+//   - Dynamic imports (importlib) are not detected
+//
+// # Thread Safety
+//
+// PythonParser is safe for concurrent use. The compiled regex patterns are
+// read-only after initialization.
 type PythonParser struct {
-	// importRegex matches "import X" and "import X as Y" statements
+	// HEURISTIC: Matches "import X" and "import X as Y" statements
 	importRegex *regexp.Regexp
 
-	// fromImportRegex matches "from X import Y" statements
+	// HEURISTIC: Matches "from X import Y" statements
 	fromImportRegex *regexp.Regexp
 
-	// mainBlockRegex matches `if __name__ == "__main__":` or similar
+	// HEURISTIC: Matches `if __name__ == "__main__":` or similar
 	mainBlockRegex *regexp.Regexp
 }
 
-// NewParser creates a new Python parser.
+// NewParser creates a new Python parser with HEURISTIC regex patterns.
+//
+// The patterns are designed to match common Python import conventions.
+// They do NOT validate Python syntax; they extract metadata that looks correct.
 func NewParser() *PythonParser {
 	return &PythonParser{
-		// Match: import module, import module as alias, import module1, module2
+		// HEURISTIC: Match import statements
+		// Handles: "import os", "import os.path", "import os as operating_system"
+		// Limitation: Matches imports inside strings (false positive)
 		importRegex: regexp.MustCompile(`^\s*import\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)`),
 
-		// Match: from module import name, from module import name as alias
+		// HEURISTIC: Match from...import statements
+		// Handles: "from os import path", "from os.path import join as pjoin"
+		// Limitation: Multi-line imports with unusual formatting may be missed
 		fromImportRegex: regexp.MustCompile(`^\s*from\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s+import\s+(.+)`),
 
-		// Match: if __name__ == "__main__": or if __name__ == '__main__':
+		// HEURISTIC: Match main block
+		// Handles: if __name__ == "__main__": (with single or double quotes)
 		mainBlockRegex: regexp.MustCompile(`^\s*if\s+__name__\s*==\s*['""]__main__['""]\s*:`),
 	}
 }
 
 // ParseFile parses a Python file and returns the parse result.
+//
+// This method performs HEURISTIC parsing using regex pattern matching.
+// Results are accurate for conventional Python code but may be incorrect
+// for edge cases. See PythonParser documentation for known limitations.
 func (p *PythonParser) ParseFile(path string) (*ParseResult, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -69,7 +109,8 @@ func (p *PythonParser) ParseFile(path string) (*ParseResult, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// Track multiline strings (rough heuristic)
+		// HEURISTIC: Track multiline strings to skip their content
+		// This prevents matching import-like text inside docstrings
 		if !inMultilineString {
 			if strings.Contains(line, `"""`) || strings.Contains(line, `'''`) {
 				if strings.Contains(line, `"""`) {

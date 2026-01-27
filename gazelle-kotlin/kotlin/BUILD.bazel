@@ -42,6 +42,7 @@ go_library(
 go_test(
     name = "kotlin_test",
     srcs = [
+        "comment_strip_test.go",
         "config_test.go",
         "generate_test.go",
         "kinds_test.go",

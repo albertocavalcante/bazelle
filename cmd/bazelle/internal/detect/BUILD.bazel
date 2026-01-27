@@ -5,6 +5,7 @@ go_library(
     srcs = ["detect.go"],
     importpath = "github.com/albertocavalcante/bazelle/cmd/bazelle/internal/detect",
     visibility = ["//cmd/bazelle:__subpackages__"],
+    deps = ["//cmd/bazelle/internal/langs"],
 )
 
 go_test(
