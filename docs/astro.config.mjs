@@ -59,7 +59,7 @@ export default defineConfig({
         starlightLlmsTxt({
           projectName: 'Bazelle',
           description: 'Bazelle is a polyglot Gazelle CLI - a unified BUILD file generator for Bazel with support for Go, Kotlin, Python, and C/C++.',
-          promote: ['index', 'getting-started', 'installation', 'configuration'],
+          promote: ['index', 'getting-started', 'installation', 'configuration', 'editors/vscode'],
           demote: ['faq', 'troubleshooting', 'contributing'],
         }),
       ],
@@ -103,6 +103,13 @@ export default defineConfig({
             { label: 'fix', slug: 'cli/fix' },
             { label: 'init', slug: 'cli/init' },
             { label: 'watch', slug: 'cli/watch' },
+          ],
+        },
+        {
+          label: 'Editors',
+          items: [
+            { label: 'Overview', slug: 'editors' },
+            { label: 'VS Code', slug: 'editors/vscode', badge: { text: 'New', variant: 'tip' } },
           ],
         },
         {

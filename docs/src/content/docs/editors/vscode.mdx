@@ -1,0 +1,212 @@
+---
+title: VS Code Extension
+description: Bazelle extension for Visual Studio Code
+---
+
+import { Tabs, TabItem, Steps, Aside, Badge } from '@astrojs/starlight/components';
+
+The Bazelle VS Code extension provides seamless integration with the Bazelle CLI, allowing you to manage BUILD files directly from your editor.
+
+## Features
+
+- **Commands**: Run all Bazelle commands from the Command Palette
+- **Status Bar**: Visual indicator showing Bazelle status and quick actions
+- **Watch Mode**: Automatically update BUILD files when source files change
+- **Auto-Update**: Optionally update BUILD files on save
+- **Starlark Syntax**: Full syntax highlighting for BUILD files, `.bzl`, and `MODULE.bazel`
+- **Bundled Binary**: Extension includes pre-built Bazelle binaries (no separate installation needed)
+
+## Installation
+
+<Tabs>
+  <TabItem label="VS Code Marketplace">
+    Search for "Bazelle" in the VS Code Extensions panel, or:
+
+    ```bash
+    code --install-extension bazelle.bazelle
+    ```
+
+    <Aside type="note">
+      The extension is not yet published to the marketplace. Use the VSIX method below.
+    </Aside>
+  </TabItem>
+  <TabItem label="From VSIX (Nightly)">
+    Download and install the latest nightly build:
+
+    ```bash
+    # Download the nightly VSIX
+    curl -fsSLO https://github.com/albertocavalcante/bazelle/releases/download/nightly/bazelle-nightly.vsix
+
+    # Install the extension
+    code --install-extension bazelle-nightly.vsix
+    ```
+  </TabItem>
+  <TabItem label="From Release">
+    Download a specific version from the [Releases page](https://github.com/albertocavalcante/bazelle/releases):
+
+    ```bash
+    # Download a specific version
+    curl -fsSLO https://github.com/albertocavalcante/bazelle/releases/download/v0.1.0/bazelle-0.1.0.vsix
+
+    # Install the extension
+    code --install-extension bazelle-0.1.0.vsix
+    ```
+  </TabItem>
+</Tabs>
+
+## Commands
+
+Access all commands via the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`):
+
+| Command | Description |
+|---------|-------------|
+| `Bazelle: Update BUILD Files` | Run `bazelle update` on the workspace |
+| `Bazelle: Update BUILD Files (Incremental)` | Update only changed directories |
+| `Bazelle: Fix BUILD Files` | Run `bazelle fix` (may make breaking changes) |
+| `Bazelle: Fix BUILD Files (Dry Run)` | Preview fix changes without applying |
+| `Bazelle: Show Status` | Show which directories have stale BUILD files |
+| `Bazelle: Start Watch Mode` | Watch for changes and auto-update |
+| `Bazelle: Stop Watch Mode` | Stop the file watcher |
+| `Bazelle: Initialize Project` | Run `bazelle init` to set up a new project |
+| `Bazelle: Show Output` | Open the Bazelle output channel |
+| `Bazelle: Download Binary` | Download the Bazelle binary for your platform |
+
+## Configuration
+
+Configure the extension in your VS Code settings (`settings.json`):
+
+```json
+{
+  // Path to the bazelle executable (default: uses bundled or PATH)
+  "bazelle.path": "bazelle",
+
+  // Automatically update BUILD files when saving source files
+  "bazelle.autoUpdate": false,
+
+  // When to show the status bar item
+  // Options: "always", "onBazelWorkspace", "never"
+  "bazelle.statusBar.show": "onBazelWorkspace",
+
+  // Start watch mode automatically when opening a Bazel workspace
+  "bazelle.watch.enabled": false,
+
+  // Debounce delay for watch mode (milliseconds)
+  "bazelle.watch.debounceMs": 500
+}
+```
+
+### Settings Reference
+
+#### `bazelle.path`
+
+Path to the Bazelle executable. The extension resolves the binary in this order:
+
+<Steps>
+1. **Configured path**: Uses `bazelle.path` if it's an absolute path or found in PATH
+2. **System PATH**: Looks for `bazelle` in your system PATH
+3. **Bundled binary**: Uses the binary bundled with the extension (platform-specific)
+4. **Download prompt**: Offers to download the binary from GitHub releases
+</Steps>
+
+#### `bazelle.autoUpdate`
+
+When enabled, the extension automatically runs `bazelle update` when you save a source file (`.go`, `.kt`, `.py`, etc.). This is useful for keeping BUILD files in sync as you code.
+
+<Aside type="caution">
+  Auto-update can be slow on large workspaces. Consider using watch mode instead.
+</Aside>
+
+#### `bazelle.statusBar.show`
+
+Controls when the status bar item is visible:
+
+- `always`: Always show the status bar item
+- `onBazelWorkspace`: Only show when the workspace contains Bazel files (default)
+- `never`: Never show the status bar item
+
+#### `bazelle.watch.enabled`
+
+When enabled, the extension starts watch mode automatically when you open a Bazel workspace. Watch mode monitors source files and updates BUILD files when changes are detected.
+
+#### `bazelle.watch.debounceMs`
+
+How long to wait (in milliseconds) after a file change before running the update. This prevents running multiple updates when saving multiple files quickly. Default: 500ms.
+
+## Status Bar
+
+The status bar shows the current Bazelle status:
+
+| Icon | Status | Description |
+|------|--------|-------------|
+| `$(check)` | Ready | Bazelle is ready, BUILD files are up to date |
+| `$(sync~spin)` | Running | Bazelle is currently running |
+| `$(eye)` | Watching | Watch mode is active |
+| `$(warning)` | Stale | Some BUILD files may be out of date |
+| `$(error)` | Error | Last command failed |
+
+Click the status bar item to open a quick-pick menu with common actions.
+
+## Starlark Syntax Highlighting
+
+The extension provides syntax highlighting for:
+
+- `BUILD` and `BUILD.bazel` files
+- `.bzl` files (Starlark macros and rules)
+- `WORKSPACE` and `WORKSPACE.bazel` files
+- `MODULE.bazel` files
+
+The grammar supports:
+- Keywords (`load`, `def`, `if`, `for`, `in`, etc.)
+- Built-in functions (`rule`, `provider`, `select`, etc.)
+- Bazel-specific constructs (`Label`, `struct`, `depset`)
+- String interpolation and raw strings
+- Comments (line and block)
+
+## Workspace Detection
+
+The extension automatically activates when it detects a Bazel workspace. It looks for:
+
+- `MODULE.bazel` (bzlmod)
+- `WORKSPACE` or `WORKSPACE.bazel` (legacy)
+- `BUILD` or `BUILD.bazel` files
+- `.bazelle/config.toml` (Bazelle config)
+
+## Troubleshooting
+
+### Binary not found
+
+If you see "Bazelle binary not found":
+
+1. Run `Bazelle: Download Binary` from the Command Palette
+2. Or install Bazelle manually and set `bazelle.path` to the absolute path
+
+### Commands not working
+
+1. Check the Output panel (`Bazelle: Show Output`) for error messages
+2. Verify Bazelle works from the terminal: `bazelle version`
+3. Check that you're in a Bazel workspace (has `MODULE.bazel` or `WORKSPACE`)
+
+### Watch mode not detecting changes
+
+1. Increase `bazelle.watch.debounceMs` if updates are too frequent
+2. Check that the file patterns match your source files
+3. Verify the workspace is correctly detected
+
+## Building from Source
+
+To build the extension from source:
+
+```bash
+cd editors/code
+
+# Install dependencies
+bun install
+
+# Build
+bun run build
+
+# Package as VSIX
+bun run package
+```
+
+The VSIX file will be created in the `editors/code` directory.
