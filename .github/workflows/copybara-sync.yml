@@ -68,38 +68,46 @@ jobs:
             # Manual trigger - use input
             PLUGIN="${{ inputs.plugin }}"
             if [[ "$PLUGIN" == "all" ]]; then
-              echo "kotlin=true" >> "$GITHUB_OUTPUT"
-              echo "python=true" >> "$GITHUB_OUTPUT"
-              echo "groovy=true" >> "$GITHUB_OUTPUT"
+              {
+                echo "kotlin=true"
+                echo "python=true"
+                echo "groovy=true"
+              } >> "$GITHUB_OUTPUT"
             else
-              echo "kotlin=$([[ "$PLUGIN" == "kotlin" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-              echo "python=$([[ "$PLUGIN" == "python" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-              echo "groovy=$([[ "$PLUGIN" == "groovy" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+              {
+                echo "kotlin=$([[ "$PLUGIN" == "kotlin" ]] && echo true || echo false)"
+                echo "python=$([[ "$PLUGIN" == "python" ]] && echo true || echo false)"
+                echo "groovy=$([[ "$PLUGIN" == "groovy" ]] && echo true || echo false)"
+              } >> "$GITHUB_OUTPUT"
             fi
           else
             # Push event - detect from changed files
             CHANGED=$(git diff --name-only HEAD~1 HEAD)
 
+            KOTLIN=false
+            PYTHON=false
+            GROOVY=false
+
             # Kotlin: gazelle-kotlin/, internal/log/, pkg/jvm/, pkg/treesitter/
             if echo "$CHANGED" | grep -qE "^(gazelle-kotlin/|internal/log/|pkg/jvm/|pkg/treesitter/)"; then
-              echo "kotlin=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "kotlin=false" >> "$GITHUB_OUTPUT"
+              KOTLIN=true
             fi
 
             # Python: gazelle-python/, internal/log/
             if echo "$CHANGED" | grep -qE "^(gazelle-python/|internal/log/)"; then
-              echo "python=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "python=false" >> "$GITHUB_OUTPUT"
+              PYTHON=true
             fi
 
             # Groovy: gazelle-groovy/, internal/log/, pkg/jvm/
             if echo "$CHANGED" | grep -qE "^(gazelle-groovy/|internal/log/|pkg/jvm/)"; then
-              echo "groovy=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "groovy=false" >> "$GITHUB_OUTPUT"
+              GROOVY=true
             fi
+
+            {
+              echo "kotlin=$KOTLIN"
+              echo "python=$PYTHON"
+              echo "groovy=$GROOVY"
+            } >> "$GITHUB_OUTPUT"
           fi
 
   # Sync Kotlin

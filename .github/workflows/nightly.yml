@@ -242,7 +242,7 @@ jobs:
       - name: Rename and checksum
         working-directory: editors/code
         run: |
-          mv *.vsix bazelle-nightly.vsix
+          mv -- *.vsix bazelle-nightly.vsix
           sha256sum bazelle-nightly.vsix > bazelle-nightly.vsix.sha256
 
       - name: Upload
