@@ -1,0 +1,211 @@
+diff -ruN original/api/BUILD.bazel patched/api/BUILD.bazel
+--- original/api/BUILD.bazel	2025-12-22 22:44:18
++++ patched/api/BUILD.bazel	2026-01-26 17:37:12
+@@ -9,9 +9,9 @@
+     ]),
+     visibility = ["//visibility:public"],
+     deps = [
+-        artifact("com.google.code.findbugs:jsr305"),
+-        artifact("com.google.errorprone:error_prone_annotations"),
+-        artifact("com.google.guava:failureaccess"),  # future transitive dep of Guava. See #5214
+-        artifact("com.google.guava:guava"),
++        artifact("com.google.code.findbugs:jsr305", repository_name = "contrib_rules_jvm_deps"),
++        artifact("com.google.errorprone:error_prone_annotations", repository_name = "contrib_rules_jvm_deps"),
++        artifact("com.google.guava:failureaccess", repository_name = "contrib_rules_jvm_deps"),  # future transitive dep of Guava. See #5214
++        artifact("com.google.guava:guava", repository_name = "contrib_rules_jvm_deps"),
+     ],
+ )
+diff -ruN original/compiler/BUILD.bazel patched/compiler/BUILD.bazel
+--- original/compiler/BUILD.bazel	2025-12-22 22:44:18
++++ patched/compiler/BUILD.bazel	2026-01-26 17:37:12
+@@ -24,9 +24,9 @@
+         "//api",
+         "//protobuf",
+         "//stub",
+-        artifact("com.google.code.findbugs:jsr305"),
+-        artifact("com.google.guava:guava"),
+-        "@com_google_protobuf//:protobuf_java",
++        artifact("com.google.code.findbugs:jsr305", repository_name = "contrib_rules_jvm_deps"),
++        artifact("com.google.guava:guava", repository_name = "contrib_rules_jvm_deps"),
++        artifact("com.google.protobuf:protobuf-java", repository_name = "contrib_rules_jvm_deps"),
+     ],
+ )
+ 
+@@ -36,8 +36,8 @@
+         "//api",
+         "//protobuf-lite",
+         "//stub",
+-        artifact("com.google.code.findbugs:jsr305"),
+-        artifact("com.google.guava:guava"),
++        artifact("com.google.code.findbugs:jsr305", repository_name = "contrib_rules_jvm_deps"),
++        artifact("com.google.guava:guava", repository_name = "contrib_rules_jvm_deps"),
+     ],
+ )
+ 
+diff -ruN original/java_grpc_library.bzl patched/java_grpc_library.bzl
+--- original/java_grpc_library.bzl	2025-12-22 22:44:18
++++ patched/java_grpc_library.bzl	2026-01-26 17:37:17
+@@ -1,7 +1,16 @@
+ """Build rule for java_grpc_library."""
+ load("@rules_proto//proto:defs.bzl", "ProtoInfo")
+ load("@rules_java//java:defs.bzl", "JavaInfo", "JavaPluginInfo", "java_common")
++load("@protobuf//bazel/common:proto_common.bzl", "proto_common")
+ 
++# Proto toolchain type for accessing protoc via toolchain resolution.
++# This enables using prebuilt protoc when --@protobuf//bazel/toolchains:prefer_prebuilt_protoc is set.
++# See: https://github.com/grpc/grpc-java/issues/11152
++_PROTO_TOOLCHAIN_TYPE = Label("@protobuf//bazel/private:proto_toolchain_type")
++
++# Check if toolchain resolution is enabled (default true in Bazel 9+)
++_INCOMPATIBLE_TOOLCHAIN_RESOLUTION = proto_common.INCOMPATIBLE_ENABLE_PROTO_TOOLCHAIN_RESOLUTION
++
+ _JavaRpcToolchainInfo = provider(
+     fields = [
+         "java_toolchain",
+@@ -13,14 +22,31 @@
+     ],
+ )
+ 
++def _get_protoc(ctx):
++    """Get protoc executable, preferring proto toolchain when available.
++
++    When toolchain resolution is enabled and a proto toolchain is registered,
++    this returns the protoc from the toolchain (which respects prefer_prebuilt_protoc).
++    Otherwise falls back to the legacy hardcoded @com_google_protobuf//:protoc.
++    """
++    if _INCOMPATIBLE_TOOLCHAIN_RESOLUTION:
++        toolchain = ctx.toolchains.get(_PROTO_TOOLCHAIN_TYPE)
++        if toolchain and hasattr(toolchain, "proto") and toolchain.proto:
++            proto_lang_toolchain = toolchain.proto
++            if hasattr(proto_lang_toolchain, "proto_compiler") and proto_lang_toolchain.proto_compiler:
++                return proto_lang_toolchain.proto_compiler
++    # Fallback to legacy hardcoded protoc
++    return ctx.attr._protoc
++
+ def _java_rpc_toolchain_impl(ctx):
++    protoc = _get_protoc(ctx)
+     return [
+         _JavaRpcToolchainInfo(
+             java_toolchain = ctx.attr._java_toolchain,
+             java_plugins = ctx.attr.java_plugins,
+             plugin = ctx.attr.plugin,
+             plugin_arg = ctx.attr.plugin_arg,
+-            protoc = ctx.attr._protoc,
++            protoc = protoc,
+             runtime = ctx.attr.runtime,
+         ),
+         platform_common.ToolchainInfo(),  # Magic for b/78647825
+@@ -51,6 +77,7 @@
+             default = Label("@bazel_tools//tools/jdk:current_java_toolchain"),
+         ),
+     },
++    toolchains = [config_common.toolchain_type(_PROTO_TOOLCHAIN_TYPE, mandatory = False)] if _INCOMPATIBLE_TOOLCHAIN_RESOLUTION else [],
+     provides = [
+         _JavaRpcToolchainInfo,
+         platform_common.ToolchainInfo,
+diff -ruN original/netty/BUILD.bazel patched/netty/BUILD.bazel
+--- original/netty/BUILD.bazel	2025-12-22 22:44:18
++++ patched/netty/BUILD.bazel	2026-01-26 17:37:12
+@@ -13,22 +13,22 @@
+     deps = [
+         "//api",
+         "//core:internal",
+-        artifact("com.google.code.findbugs:jsr305"),
+-        artifact("com.google.errorprone:error_prone_annotations"),
+-        artifact("com.google.guava:guava"),
+-        artifact("io.netty:netty-buffer"),
+-        artifact("io.netty:netty-codec"),
+-        artifact("io.netty:netty-codec-http"),
+-        artifact("io.netty:netty-codec-http2"),
+-        artifact("io.netty:netty-codec-socks"),
+-        artifact("io.netty:netty-common"),
+-        artifact("io.netty:netty-handler"),
+-        artifact("io.netty:netty-handler-proxy"),
+-        artifact("io.netty:netty-resolver"),
+-        artifact("io.netty:netty-transport"),
+-        artifact("io.netty:netty-transport-native-unix-common"),
+-        artifact("io.perfmark:perfmark-api"),
+-        artifact("org.codehaus.mojo:animal-sniffer-annotations"),
++        artifact("com.google.code.findbugs:jsr305", repository_name = "contrib_rules_jvm_deps"),
++        artifact("com.google.errorprone:error_prone_annotations", repository_name = "contrib_rules_jvm_deps"),
++        artifact("com.google.guava:guava", repository_name = "contrib_rules_jvm_deps"),
++        artifact("io.netty:netty-buffer", repository_name = "contrib_rules_jvm_deps"),
++        artifact("io.netty:netty-codec", repository_name = "contrib_rules_jvm_deps"),
++        artifact("io.netty:netty-codec-http", repository_name = "contrib_rules_jvm_deps"),
++        artifact("io.netty:netty-codec-http2", repository_name = "contrib_rules_jvm_deps"),
++        artifact("io.netty:netty-codec-socks", repository_name = "contrib_rules_jvm_deps"),
++        artifact("io.netty:netty-common", repository_name = "contrib_rules_jvm_deps"),
++        artifact("io.netty:netty-handler", repository_name = "contrib_rules_jvm_deps"),
++        artifact("io.netty:netty-handler-proxy", repository_name = "contrib_rules_jvm_deps"),
++        artifact("io.netty:netty-resolver", repository_name = "contrib_rules_jvm_deps"),
++        artifact("io.netty:netty-transport", repository_name = "contrib_rules_jvm_deps"),
++        artifact("io.netty:netty-transport-native-unix-common", repository_name = "contrib_rules_jvm_deps"),
++        artifact("io.perfmark:perfmark-api", repository_name = "contrib_rules_jvm_deps"),
++        artifact("org.codehaus.mojo:animal-sniffer-annotations", repository_name = "contrib_rules_jvm_deps"),
+     ],
+ )
+ 
+diff -ruN original/protobuf/BUILD.bazel patched/protobuf/BUILD.bazel
+--- original/protobuf/BUILD.bazel	2025-12-22 22:44:18
++++ patched/protobuf/BUILD.bazel	2026-01-26 17:37:12
+@@ -10,10 +10,10 @@
+     deps = [
+         "//api",
+         "//protobuf-lite",
+-        "@com_google_protobuf//:protobuf_java",
+-        artifact("com.google.api.grpc:proto-google-common-protos"),
+-        artifact("com.google.code.findbugs:jsr305"),
+-        artifact("com.google.errorprone:error_prone_annotations"),
+-        artifact("com.google.guava:guava"),
++        artifact("com.google.protobuf:protobuf-java", repository_name = "contrib_rules_jvm_deps"),
++        artifact("com.google.api.grpc:proto-google-common-protos", repository_name = "contrib_rules_jvm_deps"),
++        artifact("com.google.code.findbugs:jsr305", repository_name = "contrib_rules_jvm_deps"),
++        artifact("com.google.errorprone:error_prone_annotations", repository_name = "contrib_rules_jvm_deps"),
++        artifact("com.google.guava:guava", repository_name = "contrib_rules_jvm_deps"),
+     ],
+ )
+diff -ruN original/protobuf-lite/BUILD.bazel patched/protobuf-lite/BUILD.bazel
+--- original/protobuf-lite/BUILD.bazel	2025-12-22 22:44:18
++++ patched/protobuf-lite/BUILD.bazel	2026-01-26 17:37:12
+@@ -9,12 +9,10 @@
+     visibility = ["//visibility:public"],
+     deps = [
+         "//api",
+-        artifact("com.google.code.findbugs:jsr305"),
+-        artifact("com.google.guava:guava"),
+-    ] + select({
+-        ":android": ["@com_google_protobuf//:protobuf_javalite"],
+-        "//conditions:default": ["@com_google_protobuf//:protobuf_java"],
+-    }),
++        artifact("com.google.code.findbugs:jsr305", repository_name = "contrib_rules_jvm_deps"),
++        artifact("com.google.guava:guava", repository_name = "contrib_rules_jvm_deps"),
++        artifact("com.google.protobuf:protobuf-java", repository_name = "contrib_rules_jvm_deps"),
++    ],
+ )
+ 
+ # This config is not fully-reliable. If it breaks, it is probably because you
+diff -ruN original/stub/BUILD.bazel patched/stub/BUILD.bazel
+--- original/stub/BUILD.bazel	2025-12-22 22:44:18
++++ patched/stub/BUILD.bazel	2026-01-26 17:37:12
+@@ -10,9 +10,17 @@
+     deps = [
+         "//api",
+         "//context",
+-        artifact("com.google.code.findbugs:jsr305"),
+-        artifact("com.google.errorprone:error_prone_annotations"),
+-        artifact("com.google.guava:guava"),
+-        artifact("org.codehaus.mojo:animal-sniffer-annotations"),
++        artifact("com.google.code.findbugs:jsr305", repository_name = "contrib_rules_jvm_deps"),
++        artifact("com.google.errorprone:error_prone_annotations", repository_name = "contrib_rules_jvm_deps"),
++        artifact("com.google.guava:guava", repository_name = "contrib_rules_jvm_deps"),
++        artifact("org.codehaus.mojo:animal-sniffer-annotations", repository_name = "contrib_rules_jvm_deps"),
+     ],
++)
++
++# Backwards compatibility shim for @Generated annotation
++java_library(
++    name = "javax_annotation",
++    neverlink = 1,  # @Generated is source-retention
++    visibility = ["//visibility:public"],
++    exports = [artifact("org.apache.tomcat:annotations-api", repository_name = "contrib_rules_jvm_deps")],
+ )

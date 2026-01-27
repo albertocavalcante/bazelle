@@ -96,6 +96,17 @@ bazel_dep(name = "rules_java", version = "9.3.0")
 bazel_dep(name = "rules_jvm_external", version = "6.9")
 bazel_dep(name = "contrib_rules_jvm", version = "0.32.0")
 
+# Patch contrib_rules_jvm to make grpc-java use proto toolchain for protoc
+# This enables using prebuilt protoc instead of compiling from source
+# See: https://github.com/grpc/grpc-java/issues/11152
+archive_override(
+    module_name = "contrib_rules_jvm",
+    integrity = "sha256-80QAtFuJV7afr3vKr3tUQs343NZuoZVLvtWrOkVD0HA=",
+    patches = ["//third_party/patches:contrib_rules_jvm_proto_toolchain.patch"],
+    strip_prefix = "rules_jvm-0.32.0",
+    urls = ["https://github.com/bazel-contrib/rules_jvm/releases/download/v0.32.0/rules_jvm-v0.32.0.tar.gz"],
+)
+
 # Suppress warning about maven contributions from multiple modules
 # See: https://github.com/bazel-contrib/rules_jvm_external/blob/master/docs/bzlmod.md#module-dependency-layering
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")

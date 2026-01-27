@@ -47,6 +47,10 @@ build --java_runtime_version=remotejdk_21
 # See: https://blog.aspect.build/bazel-9-protobuf
 common --@protobuf//bazel/toolchains:prefer_prebuilt_protoc
 
+# Note: Ensure flags for protoc were removed because grpc_java_plugin legitimately
+# needs to compile against protoc_lib. The main protoc binary uses prebuilt via
+# proto toolchain (see grpc-java patch in third_party/patches/)
+
 # Test configuration
 test --test_output=errors
 
