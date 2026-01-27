@@ -38,9 +38,6 @@ core.workflow(
         # Move plugin code to root
         core.move("gazelle-kotlin/", ""),
         # Move shared dependencies
-        core.move("internal/log/", "internal/log/"),
-        core.move("pkg/jvm/", "pkg/jvm/"),
-        core.move("pkg/treesitter/", "pkg/treesitter/"),
         # Rewrite import paths
         core.replace(
             before = "github.com/albertocavalcante/bazelle/internal/log",
@@ -91,8 +88,6 @@ core.workflow(
     transformations = [
         # Move plugin code to root
         core.move("gazelle-python/", ""),
-        # Move shared dependencies
-        core.move("internal/log/", "internal/log/"),
         # Rewrite import paths
         core.replace(
             before = "github.com/albertocavalcante/bazelle/internal/log",
@@ -137,8 +132,6 @@ core.workflow(
         # Move plugin code to root
         core.move("gazelle-groovy/", ""),
         # Move shared dependencies
-        core.move("internal/log/", "internal/log/"),
-        core.move("pkg/jvm/", "pkg/jvm/"),
         # Rewrite import paths
         core.replace(
             before = "github.com/albertocavalcante/bazelle/internal/log",
@@ -292,9 +285,6 @@ core.workflow(
     authoring = defaultAuthor,
     transformations = [
         core.move("gazelle-kotlin/", ""),
-        core.move("internal/log/", "internal/log/"),
-        core.move("pkg/jvm/", "pkg/jvm/"),
-        core.move("pkg/treesitter/", "pkg/treesitter/"),
         core.replace(
             before = "github.com/albertocavalcante/bazelle/internal/log",
             after = "github.com/albertocavalcante/gazelle-kotlin/internal/log",
@@ -325,7 +315,6 @@ core.workflow(
     authoring = defaultAuthor,
     transformations = [
         core.move("gazelle-python/", ""),
-        core.move("internal/log/", "internal/log/"),
         core.replace(
             before = "github.com/albertocavalcante/bazelle/internal/log",
             after = "github.com/albertocavalcante/gazelle-python/internal/log",
@@ -349,8 +338,6 @@ core.workflow(
     authoring = defaultAuthor,
     transformations = [
         core.move("gazelle-groovy/", ""),
-        core.move("internal/log/", "internal/log/"),
-        core.move("pkg/jvm/", "pkg/jvm/"),
         core.replace(
             before = "github.com/albertocavalcante/bazelle/internal/log",
             after = "github.com/albertocavalcante/gazelle-groovy/internal/log",
