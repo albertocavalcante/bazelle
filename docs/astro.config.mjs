@@ -2,6 +2,11 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightLlmsTxt from 'starlight-llms-txt';
+import fs from 'node:fs';
+
+const starlarkGrammar = JSON.parse(
+  fs.readFileSync(new URL('./starlark.tmLanguage.json', import.meta.url), 'utf-8')
+);
 
 // https://astro.build/config
 export default defineConfig({
@@ -10,6 +15,17 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'Bazelle',
+      lastUpdated: true,
+      expressiveCode: {
+        shiki: {
+          langs: [starlarkGrammar],
+          langAlias: {
+            'bzl': 'starlark',
+            'bazel': 'starlark',
+            'build': 'starlark',
+          },
+        },
+      },
       description: 'Polyglot Gazelle CLI - a unified BUILD file generator with multiple language extensions',
       logo: {
         src: './src/assets/logo.svg',
