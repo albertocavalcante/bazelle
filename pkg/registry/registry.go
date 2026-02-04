@@ -15,6 +15,7 @@ import (
 	goLang "github.com/bazelbuild/bazel-gazelle/language/go"
 	protoLang "github.com/bazelbuild/bazel-gazelle/language/proto"
 	ccLang "github.com/EngFlow/gazelle_cc/language/cc"
+	javaLang "github.com/bazel-contrib/rules_jvm/java/gazelle"
 	// TODO: Re-enable when gazelle_rust proto dependency issue is fixed
 	// rustLang "github.com/calsign/gazelle_rust/rust_language"
 )
@@ -31,9 +32,9 @@ var factories = map[string]LanguageFactory{
 	"groovy": groovy.NewLanguage,
 	"python": python.NewLanguage,
 	"cc":     ccLang.NewLanguage,
+	"java":   javaLang.NewLanguage,
 	// TODO: Re-enable when dependencies are available
 	// "rust":   rustLang.NewLanguage,
-	// "java":   javaLang.NewLanguage,
 	// "scala":  scalaLang.NewLanguage,
 	// "bzl":    bzlLang.NewLanguage,
 }

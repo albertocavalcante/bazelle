@@ -155,6 +155,13 @@ archive_override(
     urls = ["https://github.com/bazel-contrib/rules_jvm/releases/download/v0.32.0/rules_jvm-v0.32.0.tar.gz"],
 )
 
+# Override grpc-java to v1.78.0 which fixes Bazel 9 ProtoInfo compatibility
+# See: https://github.com/grpc/grpc-java/pull/11293
+single_version_override(
+    module_name = "grpc-java",
+    version = "1.78.0",
+)
+
 # Suppress warning about maven contributions from multiple modules
 # See: https://github.com/bazel-contrib/rules_jvm_external/blob/master/docs/bzlmod.md#module-dependency-layering
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")

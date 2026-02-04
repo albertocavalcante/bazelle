@@ -20,6 +20,7 @@ go_library(
         "@bazel_gazelle//language/go",
         "@bazel_gazelle//language/proto",
         "@gazelle_cc//language/cc",
+        "@contrib_rules_jvm//java/gazelle",
     ],
 )
 
