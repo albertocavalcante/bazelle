@@ -126,6 +126,8 @@ export class WatchService implements vscode.Disposable {
       paths: [cwd],
     });
 
+    this.#requireWatchingPath(result.paths, cwd);
+
     this.#output.appendLine(`[Daemon] Watch started: ${result.status}`);
     this.#output.appendLine(`[Daemon] Watching paths: ${result.paths.join(", ")}`);
 
@@ -186,12 +188,16 @@ export class WatchService implements vscode.Disposable {
           this.#output.appendLine("[Daemon] Reconnected");
           if (this.#cwd && this.#daemonClient) {
             const cwd = this.#cwd;
-            void this.#daemonClient
+            const client = this.#daemonClient;
+            void client
               .watchStart({ paths: [cwd] })
-              .then(() => {
+              .then((result) => {
+                if (this.#daemonClient !== client || this.#mode !== "daemon") return;
+                this.#requireWatchingPath(result.paths, cwd);
                 this.#output.appendLine("[Daemon] Watch registration restored");
               })
               .catch((err) => {
+                if (this.#daemonClient !== client || this.#mode !== "daemon") return;
                 this.#output.appendLine(`[Daemon] Watch registration failed: ${err}`);
                 this.#cleanupDaemon();
                 this.#startSubprocess(cwd).catch((fallbackError) => {
@@ -202,6 +208,12 @@ export class WatchService implements vscode.Disposable {
           }
         }
         break;
+    }
+  }
+
+  #requireWatchingPath(paths: string[], cwd: string): void {
+    if (!paths.includes(cwd)) {
+      throw new Error(`Daemon is watching ${paths.join(", ")} instead of ${cwd}`);
     }
   }
 

@@ -634,6 +634,9 @@ func TestHandler_WatchStartAlreadyWatching(t *testing.T) {
 	if len(result.Paths) != 1 || result.Paths[0] != "/existing" {
 		t.Errorf("Paths = %v, want [/existing]", result.Paths)
 	}
+	if !mockClient.subscribed {
+		t.Error("reconnected client should receive events from the existing watcher")
+	}
 }
 
 func TestHandler_HandleWatchStop_WithWatcher(t *testing.T) {

@@ -18,6 +18,8 @@ class FakeEventEmitter<T> {
 class FakeDaemonClient {
   static instances: FakeDaemonClient[] = [];
   static failConnect = false;
+  static watchPaths = ["/workspace"];
+  static nextWatchStart: Promise<{ status: string; paths: string[] }> | null = null;
   readonly connectionState = new FakeEventEmitter<string>();
   readonly onConnectionStateChanged = this.connectionState.event;
   readonly onWatchEvent = new FakeEventEmitter<unknown>().event;
@@ -35,8 +37,10 @@ class FakeDaemonClient {
   }
   async watchStart(): Promise<{ status: string; paths: string[] }> {
     this.watchStarts++;
-    return { status: "watching", paths: ["/workspace"] };
+    if (FakeDaemonClient.nextWatchStart) return FakeDaemonClient.nextWatchStart;
+    return { status: "watching", paths: FakeDaemonClient.watchPaths };
   }
+  async watchStop(): Promise<void> {}
   dispose(): void {
     this.disposed = true;
   }
@@ -65,6 +69,7 @@ function makeWatchService(): InstanceType<typeof WatchService> {
 test("cleans up a failed daemon client before subprocess fallback", async () => {
   FakeDaemonClient.instances = [];
   FakeDaemonClient.failConnect = true;
+  FakeDaemonClient.watchPaths = ["/workspace"];
   const watch = makeWatchService();
 
   await watch.start("/workspace");
@@ -76,6 +81,7 @@ test("cleans up a failed daemon client before subprocess fallback", async () => 
 test("restores watch registration after a daemon reconnects", async () => {
   FakeDaemonClient.instances = [];
   FakeDaemonClient.failConnect = false;
+  FakeDaemonClient.watchPaths = ["/workspace"];
   const watch = makeWatchService();
 
   await watch.start("/workspace");
@@ -87,4 +93,53 @@ test("restores watch registration after a daemon reconnects", async () => {
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   expect(client?.watchStarts).toBe(2);
+});
+
+test("falls back when the daemon is watching another workspace", async () => {
+  FakeDaemonClient.instances = [];
+  FakeDaemonClient.failConnect = false;
+  FakeDaemonClient.watchPaths = ["/other-workspace"];
+  const watch = makeWatchService();
+
+  await watch.start("/workspace");
+
+  expect(watch.mode).toBe("subprocess");
+  expect(FakeDaemonClient.instances[0]?.disposed).toBe(true);
+});
+
+test("falls back if reconnect finds a watcher for another workspace", async () => {
+  FakeDaemonClient.instances = [];
+  FakeDaemonClient.failConnect = false;
+  FakeDaemonClient.watchPaths = ["/workspace"];
+  const watch = makeWatchService();
+  await watch.start("/workspace");
+
+  FakeDaemonClient.watchPaths = ["/other-workspace"];
+  const client = FakeDaemonClient.instances[0];
+  client?.connectionState.fire("connected");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(watch.mode).toBe("subprocess");
+  expect(client?.disposed).toBe(true);
+});
+
+test("does not restart watching after a reconnect fails following stop", async () => {
+  FakeDaemonClient.instances = [];
+  FakeDaemonClient.failConnect = false;
+  FakeDaemonClient.watchPaths = ["/workspace"];
+  FakeDaemonClient.nextWatchStart = null;
+  const watch = makeWatchService();
+  await watch.start("/workspace");
+
+  let rejectReconnect: (error: Error) => void = () => {};
+  FakeDaemonClient.nextWatchStart = new Promise((_, reject) => {
+    rejectReconnect = reject;
+  });
+  FakeDaemonClient.instances[0]?.connectionState.fire("connected");
+  await watch.stop();
+  rejectReconnect(new Error("reconnect failed"));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(watch.mode).toBe("none");
+  FakeDaemonClient.nextWatchStart = null;
 });
