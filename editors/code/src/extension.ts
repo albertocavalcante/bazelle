@@ -30,7 +30,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   output.appendLine(`Bazelle extension v${version} activating...`);
 
   // Initialize binary resolver
-  resolver = new BinaryResolver(context.extensionPath, output);
+  resolver = new BinaryResolver(context.extensionPath, context.globalStorageUri.fsPath, output);
 
   // Resolve binary
   let binary = await resolver.resolve();

@@ -75,6 +75,7 @@ export class WatchService implements vscode.Disposable {
         return;
       } catch (err) {
         this.#output.appendLine(`Daemon connection failed: ${err}`);
+        this.#cleanupDaemon();
         this.#output.appendLine("Falling back to subprocess mode...");
       }
     }
@@ -183,6 +184,22 @@ export class WatchService implements vscode.Disposable {
       case "connected":
         if (this.#mode === "daemon") {
           this.#output.appendLine("[Daemon] Reconnected");
+          if (this.#cwd && this.#daemonClient) {
+            const cwd = this.#cwd;
+            void this.#daemonClient
+              .watchStart({ paths: [cwd] })
+              .then(() => {
+                this.#output.appendLine("[Daemon] Watch registration restored");
+              })
+              .catch((err) => {
+                this.#output.appendLine(`[Daemon] Watch registration failed: ${err}`);
+                this.#cleanupDaemon();
+                this.#startSubprocess(cwd).catch((fallbackError) => {
+                  this.#output.appendLine(`Subprocess fallback failed: ${fallbackError}`);
+                  this.#setMode("none");
+                });
+              });
+          }
         }
         break;
     }

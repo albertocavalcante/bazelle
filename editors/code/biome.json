@@ -30,7 +30,7 @@
     }
   },
   "files": {
-    "include": ["src/**/*.ts"],
+    "include": ["src/**/*.ts", "test/**/*.ts"],
     "ignore": ["node_modules", "out", "*.d.ts"]
   }
 }

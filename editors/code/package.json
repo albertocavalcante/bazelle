@@ -184,12 +184,13 @@
     "build:prod": "bun run esbuild.ts --production",
     "watch": "bun run esbuild.ts --watch",
     "package": "vsce package --no-dependencies",
-    "lint": "biome check src/",
-    "lint:fix": "biome check --fix src/",
+    "lint": "biome check src/ test/",
+    "lint:fix": "biome check --fix src/ test/",
     "format": "biome format --write src/",
     "format:check": "biome format src/",
     "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck && bun run lint && bun run format:check",
+    "test": "bun test test/",
+    "check": "bun run typecheck && bun run lint && bun run format:check && bun run test",
     "clean": "rm -rf out/ *.vsix"
   },
   "devDependencies": {
