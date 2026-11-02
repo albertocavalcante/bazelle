@@ -26,6 +26,7 @@ go_test(
         "lifecycle_test.go",
         "protocol_test.go",
         "server_test.go",
+        "watch_subscription_test.go",
     ],
     embed = [":daemon"],
     race = "on",

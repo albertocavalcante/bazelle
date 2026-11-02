@@ -18,14 +18,26 @@ type Handler struct {
 	languages []language.Language
 	defaults  []string // gazelle defaults
 
-	// Watch state
+	// newWatcher creates file watchers; nil means watch.New (tests replace it).
+	newWatcher func(watch.Config) (fileWatcher, error)
+
+	// Watch state. One watcher is shared by all subscribed connections and
+	// stops when the last one unsubscribes or disconnects.
 	watchMu     sync.RWMutex
-	watcher     *watch.Watcher
+	watcher     fileWatcher
 	watchCancel context.CancelFunc
+	watchGen    uint64 // identifies the current watch session
 	watchPaths  []string
 	watchLangs  []string
+	subscribers map[*ClientConn]struct{}
 	lastUpdate  time.Time
 	watching    bool
+}
+
+// fileWatcher is the subset of *watch.Watcher the handler uses.
+type fileWatcher interface {
+	Run(ctx context.Context) error
+	Close() error
 }
 
 // HandlerConfig configures the RPC handler.
@@ -73,7 +85,7 @@ func (h *Handler) HandleRequest(client *ClientConn, req *Request) *Response {
 	case MethodWatchStart:
 		return h.handleWatchStart(client, req)
 	case MethodWatchStop:
-		return h.handleWatchStop(req)
+		return h.handleWatchStop(client, req)
 	case MethodWatchStatus:
 		return h.handleWatchStatus(req)
 	case MethodUpdateRun:
@@ -134,9 +146,9 @@ func (h *Handler) handleWatchStart(client *ClientConn, req *Request) *Response {
 	h.watchMu.Lock()
 	defer h.watchMu.Unlock()
 
-	// If already watching, return current status
+	// If already watching, share the existing watcher
 	if h.watching {
-		client.Subscribe()
+		h.subscribeLocked(client)
 		result := WatchStartResult{
 			Status:    "already_watching",
 			Paths:     h.watchPaths,
@@ -161,6 +173,7 @@ func (h *Handler) handleWatchStart(client *ClientConn, req *Request) *Response {
 		debounce = 500
 	}
 
+	gen := h.watchGen + 1
 	cfg := watch.Config{
 		Root:            watchPath,
 		Languages:       h.languages,
@@ -170,25 +183,37 @@ func (h *Handler) handleWatchStart(client *ClientConn, req *Request) *Response {
 		NoColor:         true,
 		JSON:            false,
 		GazelleDefaults: h.defaults,
+		OnChange: func(dirs []string) {
+			h.emit(gen, "change", dirs, nil, "")
+		},
+		OnUpdate: func(dirs, buildFiles []string) {
+			h.emit(gen, "update", dirs, buildFiles, "BUILD files updated")
+		},
+		OnError: func(err error) {
+			h.emit(gen, "error", nil, nil, err.Error())
+		},
 	}
 
-	watcher, err := watch.New(cfg)
+	newWatcher := h.newWatcher
+	if newWatcher == nil {
+		newWatcher = func(cfg watch.Config) (fileWatcher, error) { return watch.New(cfg) }
+	}
+	watcher, err := newWatcher(cfg)
 	if err != nil {
 		return NewErrorResponse(req.ID, ErrCodeInternalError, "Failed to start watcher", err.Error())
 	}
 
 	// Start watcher in background
 	ctx, cancel := context.WithCancel(context.Background())
+	h.watchGen = gen
 	h.watcher = watcher
 	h.watchCancel = cancel
 	h.watchPaths = paths
 	h.watchLangs = params.Languages
 	h.watching = true
+	h.subscribeLocked(client)
 
-	go h.runWatcher(ctx, watcher)
-
-	// Subscribe client to events
-	client.Subscribe()
+	go h.runWatcher(ctx, watcher, gen)
 
 	result := WatchStartResult{
 		Status:    "watching",
@@ -203,58 +228,139 @@ func (h *Handler) handleWatchStart(client *ClientConn, req *Request) *Response {
 	return resp
 }
 
-// runWatcher runs the watcher and broadcasts events.
-func (h *Handler) runWatcher(ctx context.Context, w *watch.Watcher) {
+// runWatcher runs the watcher and, if it ends while still the current
+// session (nobody stopped it), tells the subscribers it is gone.
+func (h *Handler) runWatcher(ctx context.Context, w fileWatcher, gen uint64) {
 	logger := log.Component("daemon")
 
 	// Run the watcher (this blocks)
-	if err := w.Run(ctx); err != nil {
-		logger.Warnw("watcher stopped with error", "error", err)
-	}
+	runErr := w.Run(ctx)
 
 	h.watchMu.Lock()
-	h.watching = false
-	h.watcher = nil
-	h.watchCancel = nil
+	if !h.isCurrentLocked(gen) {
+		// Stopped on purpose, possibly already replaced by a newer watcher.
+		h.watchMu.Unlock()
+		logger.Infow("watcher stopped")
+		return
+	}
+	subs := h.subscribers
+	h.stopLocked()
 	h.watchMu.Unlock()
 
-	logger.Infow("watcher stopped")
+	if runErr != nil {
+		logger.Warnw("watcher stopped with error", "error", runErr)
+		h.notify(subs, "error", fmt.Sprintf("watcher stopped: %v", runErr))
+	} else {
+		logger.Warnw("watcher stopped unexpectedly")
+	}
+	h.notify(subs, "stopped", "watcher stopped; call watch/start to resume")
 }
 
-// handleWatchStop handles the watch/stop request.
-func (h *Handler) handleWatchStop(req *Request) *Response {
+// handleWatchStop releases the caller's watch subscription. The shared
+// watcher stops only when no subscribers remain.
+func (h *Handler) handleWatchStop(client *ClientConn, req *Request) *Response {
 	h.watchMu.Lock()
 	defer h.watchMu.Unlock()
 
-	if !h.watching {
-		result := WatchStopResult{
-			Status: "not_watching",
+	status := "not_watching"
+	if h.watching {
+		status = "not_subscribed"
+		if h.unsubscribeLocked(client) {
+			status = "stopped"
+			if h.watching {
+				status = "unsubscribed" // other connections still use the watcher
+			}
 		}
-		resp, _ := NewResponse(*req.ID, result)
-		return resp
 	}
 
-	// Cancel the watcher
+	resp, err := NewResponse(*req.ID, WatchStopResult{Status: status})
+	if err != nil {
+		return NewErrorResponse(req.ID, ErrCodeInternalError, "Failed to create response", nil)
+	}
+	return resp
+}
+
+// ClientDisconnected releases any watch subscription held by client.
+func (h *Handler) ClientDisconnected(client *ClientConn) {
+	h.watchMu.Lock()
+	defer h.watchMu.Unlock()
+	h.unsubscribeLocked(client)
+}
+
+// subscribeLocked adds client to the current watch session.
+func (h *Handler) subscribeLocked(client *ClientConn) {
+	if h.subscribers == nil {
+		h.subscribers = make(map[*ClientConn]struct{})
+	}
+	h.subscribers[client] = struct{}{}
+	client.Subscribe()
+}
+
+// unsubscribeLocked removes client from the watch session, stopping the
+// watcher if it was the last subscriber. It reports whether client was
+// subscribed.
+func (h *Handler) unsubscribeLocked(client *ClientConn) bool {
+	if _, ok := h.subscribers[client]; !ok {
+		return false
+	}
+	delete(h.subscribers, client)
+	client.Unsubscribe()
+	if len(h.subscribers) == 0 && h.watching {
+		h.stopLocked()
+	}
+	return true
+}
+
+// stopLocked stops the current watcher and drops all subscriptions.
+func (h *Handler) stopLocked() {
 	if h.watchCancel != nil {
 		h.watchCancel()
 	}
 	if h.watcher != nil {
 		_ = h.watcher.Close()
 	}
+	for c := range h.subscribers {
+		c.Unsubscribe()
+	}
 
 	h.watching = false
 	h.watcher = nil
 	h.watchCancel = nil
+	h.subscribers = nil
+}
 
-	result := WatchStopResult{
-		Status: "stopped",
+// isCurrentLocked reports whether gen is the running watch session.
+func (h *Handler) isCurrentLocked(gen uint64) bool {
+	return h.watching && h.watchGen == gen
+}
+
+// emit broadcasts a watcher event unless its session has been superseded.
+func (h *Handler) emit(gen uint64, eventType string, dirs, files []string, message string) {
+	h.watchMu.Lock()
+	current := h.isCurrentLocked(gen)
+	if current && eventType == "update" {
+		h.lastUpdate = time.Now()
 	}
+	h.watchMu.Unlock()
 
-	resp, err := NewResponse(*req.ID, result)
+	if current {
+		h.BroadcastEvent(eventType, dirs, files, message)
+	}
+}
+
+// notify sends a watch event directly to subs (already unsubscribed).
+func (h *Handler) notify(subs map[*ClientConn]struct{}, eventType, message string) {
+	notif, err := NewNotification(MethodWatchEvent, WatchEventParams{
+		Type:      eventType,
+		Message:   message,
+		Timestamp: time.Now().Format(time.RFC3339),
+	})
 	if err != nil {
-		return NewErrorResponse(req.ID, ErrCodeInternalError, "Failed to create response", nil)
+		return
 	}
-	return resp
+	for c := range subs {
+		_ = c.Send(notif)
+	}
 }
 
 // handleWatchStatus handles the watch/status request.
@@ -296,41 +402,26 @@ func (h *Handler) handleUpdateRun(req *Request) *Response {
 	}
 
 	// TODO: Implement manual update trigger
-	// For now, return a not implemented error
-	return NewErrorResponse(req.ID, ErrCodeInternalError, "Not implemented", nil)
+	return notImplemented(req)
 }
 
 // handleStatusGet handles the status/get request.
 func (h *Handler) handleStatusGet(req *Request) *Response {
 	// TODO: Implement status/get using incremental tracker
-	// For now, return empty status
-	result := StatusGetResult{
-		Stale:     false,
-		StaleDirs: nil,
-	}
+	return notImplemented(req)
+}
 
-	resp, err := NewResponse(*req.ID, result)
-	if err != nil {
-		return NewErrorResponse(req.ID, ErrCodeInternalError, "Failed to create response", nil)
-	}
-	return resp
+// notImplemented answers a known but unimplemented method. JSON-RPC has no
+// dedicated code, so it uses Method not found rather than a fake result.
+func notImplemented(req *Request) *Response {
+	return NewErrorResponse(req.ID, ErrCodeMethodNotFound, "Method not implemented: "+req.Method, nil)
 }
 
 // Stop stops the handler and any running watcher.
 func (h *Handler) Stop() {
 	h.watchMu.Lock()
 	defer h.watchMu.Unlock()
-
-	if h.watchCancel != nil {
-		h.watchCancel()
-	}
-	if h.watcher != nil {
-		_ = h.watcher.Close()
-	}
-
-	h.watching = false
-	h.watcher = nil
-	h.watchCancel = nil
+	h.stopLocked()
 }
 
 // BroadcastEvent broadcasts a watch event to all subscribed clients.

@@ -233,3 +233,29 @@ func TestWatcherCloseNilFsWatcher(t *testing.T) {
 		t.Errorf("Close() on nil fsWatcher error = %v", err)
 	}
 }
+
+func TestHandleChangedDirsReportsHooks(t *testing.T) {
+	// A root that does not exist makes Gazelle fail, so the flush must report
+	// the change first and then the error, never an update.
+	var changed []string
+	var gotErr error
+	updated := false
+	w := &Watcher{config: Config{
+		Root:     filepath.Join(t.TempDir(), "missing"),
+		OnChange: func(dirs []string) { changed = dirs },
+		OnUpdate: func([]string, []string) { updated = true },
+		OnError:  func(err error) { gotErr = err },
+	}, logger: NewLogger(LoggerConfig{NoColor: true})}
+
+	w.handleChangedDirs([]string{"b", "a"})
+
+	if len(changed) != 2 || changed[0] != "a" || changed[1] != "b" {
+		t.Errorf("OnChange dirs = %v, want [a b]", changed)
+	}
+	if gotErr == nil {
+		t.Error("OnError was not called for a failing Gazelle run")
+	}
+	if updated {
+		t.Error("OnUpdate must not be called when Gazelle fails")
+	}
+}

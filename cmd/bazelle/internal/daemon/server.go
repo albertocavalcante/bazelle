@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -44,7 +45,7 @@ type ClientConn struct {
 	encoder    *json.Encoder
 	decoder    *json.Decoder
 	encoderMu  sync.Mutex
-	subscribed bool // whether client wants watch events
+	subscribed atomic.Bool // whether client wants watch events
 	closed     bool
 	closeMu    sync.Mutex
 }
@@ -192,6 +193,7 @@ func (s *Server) handleClient(client *ClientConn) {
 	logger := log.Component("daemon")
 	defer func() {
 		client.Close()
+		s.handler.ClientDisconnected(client)
 		s.clientsMu.Lock()
 		delete(s.clients, client)
 		clientCount := len(s.clients)
@@ -323,7 +325,7 @@ func (s *Server) Broadcast(notif *Notification) {
 	defer s.clientsMu.RUnlock()
 
 	for client := range s.clients {
-		if client.subscribed {
+		if client.subscribed.Load() {
 			_ = client.Send(notif)
 		}
 	}
@@ -385,10 +387,10 @@ func (c *ClientConn) Close() {
 
 // Subscribe enables event notifications for this client.
 func (c *ClientConn) Subscribe() {
-	c.subscribed = true
+	c.subscribed.Store(true)
 }
 
 // Unsubscribe disables event notifications for this client.
 func (c *ClientConn) Unsubscribe() {
-	c.subscribed = false
+	c.subscribed.Store(false)
 }
