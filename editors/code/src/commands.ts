@@ -4,9 +4,10 @@
 
 import { spawn } from "node:child_process";
 import * as vscode from "vscode";
+import { getConfiguration } from "./configuration";
 import { getBinaryResolver, getStatusBarManager } from "./extension";
 import type { BazelleService } from "./services/bazelle";
-import { DaemonClient, getDaemonConfig } from "./services/daemon";
+import { DaemonClient } from "./services/daemon";
 import type { WatchService } from "./services/watch";
 
 export function registerCommands(
@@ -288,9 +289,8 @@ export function registerCommands(
   register("bazelle.daemon.status", async () => {
     output.appendLine("Checking daemon status...");
 
-    const config = getDaemonConfig();
     const client = new DaemonClient(output, {
-      socketPath: config.socketPath,
+      socketPath: getConfiguration().daemonSocketPath,
     });
 
     try {
