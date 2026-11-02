@@ -69,7 +69,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(async (e) => {
-      if (e.affectsConfiguration("bazelle.path")) applyBinary(await resolver.resolve());
+      if (!e.affectsConfiguration("bazelle.path")) return;
+      const previous = bazelle.binaryPath;
+      const binary = applyBinary(await resolver.resolve());
+      if (binary && binary.path !== previous && watch.restartSubprocess()) {
+        output.appendLine(`Watch restarted with ${binary.path}`);
+      }
     }),
   );
 

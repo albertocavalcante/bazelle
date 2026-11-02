@@ -282,6 +282,21 @@ export class WatchService implements vscode.Disposable {
     this.#onEvent.fire({ type: "started" });
   }
 
+  /**
+   * Respawn a subprocess watcher so it runs the current binary. A daemon
+   * watch runs inside the daemon and is left alone. Returns whether it restarted.
+   */
+  restartSubprocess(): boolean {
+    const child = this.#process;
+    const cwd = this.#cwd;
+    if (this.#mode !== "subprocess" || this.#starting || !child || !cwd) return false;
+    this.#output.appendLine("Restarting watch mode with the new bazelle binary...");
+    this.#process = null; // detach first so its exit is not reported as a failure
+    this.#bazelle.kill(child);
+    this.#startSubprocess(cwd);
+    return true;
+  }
+
   #setMode(mode: WatchMode): void {
     if (this.#mode !== mode) {
       this.#mode = mode;

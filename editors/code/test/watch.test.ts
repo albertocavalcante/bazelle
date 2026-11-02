@@ -387,3 +387,36 @@ test("an unreachable daemon at start falls back without a warning", async () => 
   expect(watch.mode).toBe("subprocess");
   expect(warnings).toEqual([]);
 });
+
+test("restarting for a new binary respawns the subprocess in the same folder", async () => {
+  reset();
+  config.daemonEnabled = false;
+  const watch = makeWatchService();
+  await watch.start("/workspace");
+  const first = bazelle.processes[0];
+
+  expect(await watch.restartSubprocess()).toBe(true);
+
+  expect(first?.killed).toBe(true);
+  expect(bazelle.watchCalls.map((call) => call.cwd)).toEqual(["/workspace", "/workspace"]);
+  expect(watch.mode).toBe("subprocess");
+});
+
+test("a daemon watch is not restarted for a new binary", async () => {
+  reset();
+  const watch = makeWatchService();
+  await watch.start("/workspace");
+
+  expect(await watch.restartSubprocess()).toBe(false);
+
+  expect(watch.mode).toBe("daemon");
+  expect(FakeDaemonClient.instances).toHaveLength(1);
+});
+
+test("restarting for a new binary is a no-op when watch is stopped", async () => {
+  reset();
+  const watch = makeWatchService();
+
+  expect(await watch.restartSubprocess()).toBe(false);
+  expect(watch.mode).toBe("none");
+});
