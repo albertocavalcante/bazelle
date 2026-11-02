@@ -97,7 +97,35 @@ archive_override(
 
 # Go SDK configuration with nogo static analysis
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
-go_sdk.download(version = "1.25.6")
+
+# Pin the SDK archives so rules_go never fetches the unhashed go.dev/dl JSON
+# index to discover them. Hashes are from go.dev/dl, cross-checked against
+# dl.google.com/go/<file>.sha256; bump them together with the version.
+go_sdk.download(
+    sdks = {
+        "darwin_amd64": [
+            "go1.25.6.darwin-amd64.tar.gz",
+            "e2b5b237f5c262931b8e280ac4b8363f156e19bfad5270c099998932819670b7",
+        ],
+        "darwin_arm64": [
+            "go1.25.6.darwin-arm64.tar.gz",
+            "984521ae978a5377c7d782fd2dd953291840d7d3d0bd95781a1f32f16d94a006",
+        ],
+        "linux_amd64": [
+            "go1.25.6.linux-amd64.tar.gz",
+            "f022b6aad78e362bcba9b0b94d09ad58c5a70c6ba3b7582905fababf5fe0181a",
+        ],
+        "linux_arm64": [
+            "go1.25.6.linux-arm64.tar.gz",
+            "738ef87d79c34272424ccdf83302b7b0300b8b096ed443896089306117943dd5",
+        ],
+        "windows_amd64": [
+            "go1.25.6.windows-amd64.zip",
+            "19b4733b727ba5c611b5656187f3ac367d278d64c3d4199a845e39c0fdac5335",
+        ],
+    },
+    version = "1.25.6",
+)
 go_sdk.nogo(nogo = "//tools/nogo:bazelle_nogo")
 use_repo(go_sdk, "go_toolchains")
 
