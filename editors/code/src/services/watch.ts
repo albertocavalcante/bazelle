@@ -120,7 +120,6 @@ export class WatchService implements vscode.Disposable {
       }),
       client.onError((err) => {
         if (this.#daemonClient !== client) return;
-        this.#output.appendLine(`[Daemon] Error: ${err.message}`);
         this.#onEvent.fire({ type: "error", message: err.message });
       }),
     ];
@@ -172,8 +171,6 @@ export class WatchService implements vscode.Disposable {
   }
 
   #handleDaemonEvent(event: WatchEventParams): void {
-    this.#output.appendLine(`[Daemon] Watch event: ${event.type} at ${event.timestamp}`);
-
     switch (event.type) {
       case "change":
         this.#onEvent.fire({
@@ -193,6 +190,7 @@ export class WatchService implements vscode.Disposable {
         this.#onEvent.fire({ type: "error", message: event.message });
         break;
       case "shutdown":
+        this.#output.appendLine(`[Daemon] Shutting down at ${event.timestamp}`);
         // Fall back now instead of after the reconnect backoff (~31s).
         if (this.#mode === "daemon" && this.#cwd) {
           this.#fallBackToSubprocess(this.#cwd, "the daemon shut down");
@@ -249,28 +247,29 @@ export class WatchService implements vscode.Disposable {
     this.#process = child;
 
     const decoder = new StringDecoder("utf8");
+    // Recognized JSON events are logged by onEvent listeners; echo the rest.
     const lines = new LineBuffer((line) => {
+      let event: WatchEvent | undefined;
       try {
-        const event = parseWatchEvent(JSON.parse(line));
-        if (event && this.#process === child) this.#onEvent.fire(event);
+        event = parseWatchEvent(JSON.parse(line));
       } catch {
         // Not JSON
       }
+      if (!event) this.#output.appendLine(line);
+      else if (this.#process === child) this.#onEvent.fire(event);
     });
 
-    child.stdout?.on("data", (data: Buffer) => {
-      const text = decoder.write(data);
-      this.#output.append(text);
-      lines.push(text);
-    });
+    child.stdout?.on("data", (data: Buffer) => lines.push(decoder.write(data)));
 
     child.stderr?.on("data", (data: Buffer) => {
       this.#output.append(data.toString());
     });
 
     const exited = (reason: string) => {
-      this.#output.appendLine(reason);
-      if (this.#process !== child) return;
+      if (this.#process !== child) {
+        this.#output.appendLine(reason); // a replaced watcher; not an error event
+        return;
+      }
       this.#process = null;
       this.#onEvent.fire({ type: "error", message: reason });
       this.#setMode("none");

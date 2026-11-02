@@ -75,6 +75,7 @@ export class StatusBarManager implements vscode.Disposable {
       md.appendMarkdown(
         `**Watch Mode:** ${this.#state.watchMode === "daemon" ? "Daemon" : "Subprocess"}\n\n`,
       );
+      md.appendMarkdown(`**Watch updates:** ${this.#state.watchUpdates} (details in output)\n\n`);
     }
     if (view.daemonConnected) md.appendMarkdown("**Daemon:** $(check) Connected\n\n");
     md.appendMarkdown("---\n\n");
@@ -101,7 +102,12 @@ export class StatusBarManager implements vscode.Disposable {
   }
 
   setWatchMode(watchMode: WatchMode): void {
-    this.#update({ watchMode });
+    // The count survives a daemon-to-subprocess fallback, not a stop.
+    this.#update(watchMode === "none" ? { watchMode, watchUpdates: 0 } : { watchMode });
+  }
+
+  addWatchUpdates(count: number): void {
+    if (count > 0) this.#update({ watchUpdates: this.#state.watchUpdates + count });
   }
 
   setError(error: string | undefined): void {

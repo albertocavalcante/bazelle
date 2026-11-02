@@ -24,3 +24,14 @@ test("a daemon-mode watch implies a connected daemon", () => {
   expect(describeStatus({ ...initialStatus, watchMode: "daemon" }).daemonConnected).toBe(true);
   expect(describeStatus(initialStatus).daemonConnected).toBe(false);
 });
+
+test("counts BUILD updates made by the running watch", () => {
+  const watching = { ...initialStatus, watchMode: "subprocess" as const };
+  expect(describeStatus({ ...watching, watchUpdates: 0 }).text).toBe("$(eye) Bazelle (Subprocess)");
+  expect(describeStatus({ ...watching, watchUpdates: 3 }).text).toBe(
+    "$(eye) Bazelle (Subprocess) · 3",
+  );
+  expect(describeStatus({ ...watching, watchUpdates: 3, busy: 1 }).text).toBe(
+    "$(loading~spin) Bazelle",
+  );
+});

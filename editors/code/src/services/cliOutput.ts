@@ -58,6 +58,36 @@ export function parseWatchEvent(event: Record<string, unknown>): WatchEvent | un
   }
 }
 
+const list = (items: string[] | undefined, max = 3): string => {
+  const shown = (items ?? []).slice(0, max).join(", ");
+  const more = (items?.length ?? 0) - max;
+  return more > 0 ? `${shown} and ${more} more` : shown;
+};
+
+/** One output-channel line describing a watch event. */
+export function formatWatchEvent(event: WatchEvent): string {
+  switch (event.type) {
+    case "started":
+      return `[Watch] Watching${event.path ? ` ${event.path}` : ""}`;
+    case "file_change":
+      return `[Watch] Changed ${list(event.files?.length ? event.files : event.directories)}`;
+    case "updating":
+      return `[Watch] Updating ${list(event.directories)}`;
+    case "updated": {
+      const what = event.path ?? list(event.directories);
+      return `[Watch] Updated ${what}${event.message ? ` (${event.message})` : ""}`;
+    }
+    case "error":
+      return `[Watch] Error: ${event.message ?? "unknown error"}`;
+  }
+}
+
+/** How many BUILD files (or directories) an event reports as updated. */
+export function updateCount(event: WatchEvent): number {
+  if (event.type !== "updated") return 0;
+  return event.path ? 1 : (event.directories?.length ?? 1);
+}
+
 /**
  * Splits a text stream into complete lines, holding back a trailing partial
  * line until the rest of it arrives.

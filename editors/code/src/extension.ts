@@ -7,6 +7,7 @@ import { registerCommands } from "./commands";
 import { getConfiguration } from "./configuration";
 import { BazelleService } from "./services/bazelle";
 import { BinaryResolver, type ResolvedBinary } from "./services/binaryResolver";
+import { formatWatchEvent, updateCount } from "./services/cliOutput";
 import { coalesce } from "./services/coalesce";
 import { WatchService } from "./services/watch";
 import { StatusBarManager } from "./ui/statusBar";
@@ -31,7 +32,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const bazelle = new BazelleService("bazelle", output);
   const watch = new WatchService(bazelle, output);
   subscriptions.push(statusBar, watch);
-  subscriptions.push(watch.onModeChanged((mode) => statusBar.setWatchMode(mode)));
+  subscriptions.push(
+    watch.onModeChanged((mode) => statusBar.setWatchMode(mode)),
+    watch.onEvent((event) => {
+      output.appendLine(formatWatchEvent(event));
+      statusBar.addWatchUpdates(updateCount(event));
+    }),
+  );
 
   let hasBinary = false;
   const applyBinary = (binary: ResolvedBinary | undefined): ResolvedBinary | undefined => {

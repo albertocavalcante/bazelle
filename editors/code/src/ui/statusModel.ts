@@ -9,6 +9,8 @@ export interface StatusState {
   busy: number;
   watchMode: WatchMode;
   daemonConnected: boolean;
+  /** BUILD files (or directories) the running watch has updated. */
+  watchUpdates: number;
   /** Persistent problem (e.g. no CLI binary); cleared when resolved. */
   error: string | undefined;
 }
@@ -17,6 +19,7 @@ export const initialStatus: StatusState = {
   busy: 0,
   watchMode: "none",
   daemonConnected: false,
+  watchUpdates: 0,
   error: undefined,
 };
 
@@ -57,7 +60,8 @@ export function describeStatus(state: StatusState): StatusView {
       : state.watchMode !== "none"
         ? "watching"
         : "ready";
-  const suffix = kind === "watching" ? ` (${MODE_LABELS[state.watchMode]})` : "";
+  const count = state.watchUpdates > 0 ? ` · ${state.watchUpdates}` : "";
+  const suffix = kind === "watching" ? ` (${MODE_LABELS[state.watchMode]})${count}` : "";
   return {
     kind,
     text: `${ICONS[kind]} Bazelle${suffix}`,

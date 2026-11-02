@@ -96,6 +96,7 @@ interface FakeBazelle {
 
 let bazelle: FakeBazelle;
 let warnings: string[] = [];
+let outputText = "";
 
 function makeWatchService(): InstanceType<typeof WatchService> {
   bazelle = {
@@ -119,7 +120,15 @@ function makeWatchService(): InstanceType<typeof WatchService> {
       return { success: true };
     },
   };
-  const output = { append: () => {}, appendLine: () => {} };
+  outputText = "";
+  const output = {
+    append: (text: string) => {
+      outputText += text;
+    },
+    appendLine: (line: string) => {
+      outputText += `${line}\n`;
+    },
+  };
   warnings = [];
   return new WatchService(bazelle as never, output as never, {
     getConfig: () => config,
@@ -419,4 +428,18 @@ test("restarting for a new binary is a no-op when watch is stopped", async () =>
 
   expect(await watch.restartSubprocess()).toBe(false);
   expect(watch.mode).toBe("none");
+});
+
+test("echoes non-event subprocess output but leaves JSON events to the event log", async () => {
+  reset();
+  config.daemonEnabled = false;
+  const watch = makeWatchService();
+  await watch.start("/workspace");
+  const child = bazelle.processes[0];
+
+  child?.stdout.emit("data", Buffer.from('{"event":"updated","build_file":"pkg/BUILD.bazel"}\n'));
+  child?.stdout.emit("data", Buffer.from("plain progress line\n"));
+
+  expect(outputText).not.toContain('"event"');
+  expect(outputText).toContain("plain progress line\n");
 });
