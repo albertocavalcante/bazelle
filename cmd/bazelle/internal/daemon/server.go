@@ -213,13 +213,14 @@ func (s *Server) handleClient(client *ClientConn) {
 			if err == io.EOF || errors.Is(err, net.ErrClosed) {
 				return // Client disconnected
 			}
-			// Parse error - send error response
+			// json.Decoder errors are sticky, so the stream cannot recover:
+			// report the parse error once (best effort) and drop the client.
 			logger.Debugw("failed to decode request", "error", err)
 			resp := NewErrorResponse(nil, ErrCodeParseError, "Parse error", nil)
 			if err := client.Send(resp); err != nil {
 				logger.Debugw("failed to send error response", "error", err)
 			}
-			continue
+			return
 		}
 
 		// Validate JSON-RPC version

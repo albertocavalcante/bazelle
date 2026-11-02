@@ -377,3 +377,48 @@ func TestServer_StartReplyPrecedesWatcherEvents(t *testing.T) {
 		_ = cli.Close()
 	}
 }
+
+// json.Decoder errors are sticky: after a malformed line the server must
+// reply once with a parse error and drop the connection, not loop forever.
+func TestServer_MalformedRequestClosesConnection(t *testing.T) {
+	t.Parallel()
+	server := newTestServer()
+	server.writeTimeout = 200 * time.Millisecond
+	h := NewHandler(server)
+	server.handler = h
+
+	srv, cli := net.Pipe()
+	t.Cleanup(func() { _ = cli.Close() })
+	cc := &ClientConn{conn: srv, server: server, encoder: json.NewEncoder(srv), decoder: json.NewDecoder(srv)}
+	server.clients[cc] = struct{}{}
+	h.subscribeLocked(cc)
+	h.watching = true // pretend cc holds a watch subscription
+	done := make(chan struct{})
+	go func() { server.handleClient(cc); close(done) }()
+
+	go func() { _, _ = cli.Write([]byte("{not json\n")) }()
+	_ = cli.SetReadDeadline(time.Now().Add(2 * time.Second))
+	dec := json.NewDecoder(cli)
+	var resp Response
+	if err := dec.Decode(&resp); err != nil {
+		t.Fatalf("read parse error reply: %v", err)
+	}
+	if resp.Error == nil || resp.Error.Code != ErrCodeParseError || resp.ID != nil {
+		t.Fatalf("first reply = %+v, want a parse error with id null", resp)
+	}
+	var extra json.RawMessage
+	if err := dec.Decode(&extra); err == nil {
+		t.Fatalf("server kept talking after a parse error: %s", extra)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handleClient still running after a malformed request")
+	}
+	h.watchMu.RLock()
+	defer h.watchMu.RUnlock()
+	if len(h.subscribers) != 0 || h.watching {
+		t.Error("disconnect cleanup did not release the subscription")
+	}
+}
