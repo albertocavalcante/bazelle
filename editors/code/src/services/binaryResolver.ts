@@ -26,6 +26,7 @@ type BinarySource = "configured" | "path" | "bundled" | "downloaded";
 // The nightly tag can move. A moved archive is rejected until these pins are
 // deliberately updated from the release asset digests.
 const PINNED_RELEASE = "nightly";
+const DOWNLOAD_TIMEOUT_MS = 120_000;
 
 interface PlatformConfig {
   platform: Platform;
@@ -119,13 +120,17 @@ export class BinaryResolver {
       {
         location: vscode.ProgressLocation.Notification,
         title: `Downloading bazelle (${PINNED_RELEASE})...`,
-        cancellable: false,
+        cancellable: true,
       },
-      async () => {
+      async (_progress, token) => {
         try {
           this.#log(`Downloading: ${url}`);
 
-          const response = await fetch(url);
+          const abort = new AbortController();
+          token.onCancellationRequested(() => abort.abort(new Error("Download cancelled")));
+          const response = await fetch(url, {
+            signal: AbortSignal.any([abort.signal, AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)]),
+          });
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
