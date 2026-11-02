@@ -1,42 +1,25 @@
 /**
  * Daemon client - connects to bazelle daemon via Unix socket
  *
- * Implements JSON-RPC 2.0 protocol over Unix socket connection.
+ * Implements JSON-RPC 2.0 over newline-delimited messages, matching
+ * cmd/bazelle/internal/daemon/protocol.go.
  */
 
 import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
-
-// JSON-RPC 2.0 types matching cmd/bazelle/internal/daemon/protocol.go
+import { LineBuffer } from "./cliOutput";
 
 const JSONRPC_VERSION = "2.0";
 
-interface JsonRpcRequest {
+interface JsonRpcMessage {
   jsonrpc: string;
-  id: number;
-  method: string;
+  id?: number | null;
+  method?: string;
   params?: unknown;
-}
-
-interface JsonRpcNotification {
-  jsonrpc: string;
-  method: string;
-  params?: unknown;
-}
-
-interface JsonRpcResponse {
-  jsonrpc: string;
-  id: number | null;
   result?: unknown;
-  error?: JsonRpcError;
-}
-
-interface JsonRpcError {
-  code: number;
-  message: string;
-  data?: unknown;
+  error?: { code: number; message: string; data?: unknown };
 }
 
 // RPC method names (matching protocol.go)
@@ -47,8 +30,6 @@ const Methods = {
   WatchStop: "watch/stop",
   WatchStatus: "watch/status",
   WatchEvent: "watch/event", // notification from server
-  UpdateRun: "update/run",
-  StatusGet: "status/get",
 } as const;
 
 // Result types matching protocol.go
@@ -89,44 +70,26 @@ export interface WatchStatusResult {
 }
 
 export interface WatchEventParams {
-  type: "change" | "update" | "error";
+  type: "change" | "update" | "error" | "shutdown";
   directories?: string[];
   files?: string[];
   message?: string;
   timestamp: string;
 }
 
-export interface UpdateRunParams {
-  paths?: string[];
-  incremental?: boolean;
-}
-
-export interface UpdateRunResult {
-  status: string;
-  updated_dirs?: string[];
-  duration?: string;
-}
-
-export interface StatusGetResult {
-  stale: boolean;
-  stale_dirs?: string[];
-}
-
-// Connection state
 export type DaemonConnectionState = "disconnected" | "connecting" | "connected" | "reconnecting";
 
-// Events emitted by daemon client
-export interface DaemonEvents {
-  connectionStateChanged: DaemonConnectionState;
-  watchEvent: WatchEventParams;
-  error: Error;
-}
-
-// Pending request tracker
 interface PendingRequest {
   resolve: (result: unknown) => void;
   reject: (error: Error) => void;
   timeout: ReturnType<typeof setTimeout>;
+}
+
+/** Ping timeout used by isAvailable() so probes never hang the UI. */
+const PROBE_TIMEOUT_MS = 2000;
+
+export function defaultSocketPath(): string {
+  return path.join(os.homedir(), ".bazelle", "daemon.sock");
 }
 
 export class DaemonClient implements vscode.Disposable {
@@ -135,22 +98,23 @@ export class DaemonClient implements vscode.Disposable {
   readonly #onWatchEvent = new vscode.EventEmitter<WatchEventParams>();
   readonly #onError = new vscode.EventEmitter<Error>();
 
+  readonly #socketPath: string;
+  readonly #requestTimeout: number;
+  readonly #maxReconnectAttempts: number;
+  readonly #reconnectDelay: number;
+  readonly #stableConnectionMs: number;
+
+  // Only events from the current socket are acted on; a replaced or
+  // deliberately closed socket's late events are ignored.
   #socket: net.Socket | null = null;
-  #socketPath: string;
+  #connecting: Promise<void> | null = null;
   #connectionState: DaemonConnectionState = "disconnected";
-  #buffer = "";
   #requestId = 0;
   #pendingRequests = new Map<number, PendingRequest>();
   #reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   #reconnectAttempts = 0;
   #disposed = false;
 
-  // Configuration
-  readonly #requestTimeout: number;
-  readonly #maxReconnectAttempts: number;
-  readonly #reconnectDelay: number;
-
-  // Public events
   readonly onConnectionStateChanged = this.#onConnectionStateChanged.event;
   readonly onWatchEvent = this.#onWatchEvent.event;
   readonly onError = this.#onError.event;
@@ -162,29 +126,20 @@ export class DaemonClient implements vscode.Disposable {
       requestTimeout?: number;
       maxReconnectAttempts?: number;
       reconnectDelay?: number;
+      /** A connection must stay up this long before reconnect attempts reset. */
+      stableConnectionMs?: number;
     },
   ) {
     this.#output = output;
-    this.#socketPath = options?.socketPath ?? this.#getDefaultSocketPath();
+    this.#socketPath = options?.socketPath || defaultSocketPath();
     this.#requestTimeout = options?.requestTimeout ?? 30000;
     this.#maxReconnectAttempts = options?.maxReconnectAttempts ?? 5;
     this.#reconnectDelay = options?.reconnectDelay ?? 1000;
-  }
-
-  #getDefaultSocketPath(): string {
-    const homeDir = os.homedir();
-    return path.join(homeDir, ".bazelle", "daemon.sock");
+    this.#stableConnectionMs = options?.stableConnectionMs ?? 10_000;
   }
 
   get socketPath(): string {
     return this.#socketPath;
-  }
-
-  set socketPath(value: string) {
-    if (this.#connectionState !== "disconnected") {
-      throw new Error("Cannot change socket path while connected");
-    }
-    this.#socketPath = value;
   }
 
   get connectionState(): DaemonConnectionState {
@@ -198,212 +153,200 @@ export class DaemonClient implements vscode.Disposable {
   #setConnectionState(state: DaemonConnectionState): void {
     if (this.#connectionState !== state) {
       this.#connectionState = state;
-      this.#onConnectionStateChanged.fire(state);
       this.#output.appendLine(`[Daemon] Connection state: ${state}`);
+      this.#onConnectionStateChanged.fire(state);
     }
   }
 
   /**
-   * Connect to the daemon socket
+   * Connect to the daemon socket. Rejects (without retrying) if the daemon
+   * is not reachable; retries only happen after an established connection drops.
    */
   async connect(): Promise<void> {
-    if (this.#disposed) {
-      throw new Error("Client has been disposed");
-    }
+    if (this.#disposed) throw new Error("Client has been disposed");
+    if (this.isConnected) return;
+    if (this.#connecting) return this.#connecting;
 
-    if (this.#connectionState === "connected" || this.#connectionState === "connecting") {
-      return;
-    }
-
-    this.#setConnectionState("connecting");
+    this.#clearReconnectTimer();
     this.#reconnectAttempts = 0;
-
-    return this.#doConnect();
+    this.#setConnectionState("connecting");
+    this.#connecting = this.#openSocket()
+      .catch((err: Error) => {
+        this.#setConnectionState("disconnected");
+        throw new Error(`Failed to connect to daemon: ${err.message}`);
+      })
+      .finally(() => {
+        this.#connecting = null;
+      });
+    return this.#connecting;
   }
 
-  async #doConnect(): Promise<void> {
+  /** Open a socket; resolves once connected, rejects if it never connects. */
+  #openSocket(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.#socket = net.createConnection(this.#socketPath);
+      // Attach listeners before connecting so an immediate failure (ENOENT)
+      // is never an unhandled 'error' event.
+      const socket = new net.Socket();
+      socket.setEncoding("utf8");
+      this.#socket = socket;
+      let established = false;
+      let connectedAt = 0;
+      const lines = new LineBuffer((line) => this.#processMessage(line));
 
-      this.#socket.on("connect", () => {
-        this.#setConnectionState("connected");
-        this.#reconnectAttempts = 0;
+      socket.on("connect", () => {
+        if (socket !== this.#socket) {
+          socket.destroy(); // superseded by a newer connection attempt
+          return;
+        }
+        established = true;
+        connectedAt = Date.now();
         this.#output.appendLine(`[Daemon] Connected to ${this.#socketPath}`);
+        this.#setConnectionState("connected");
         resolve();
       });
 
-      this.#socket.on("data", (data: Buffer) => {
-        this.#handleData(data);
+      socket.on("data", (chunk: string) => {
+        if (socket === this.#socket) lines.push(chunk);
       });
 
-      this.#socket.on("error", (err: NodeJS.ErrnoException) => {
+      socket.on("error", (err) => {
         this.#output.appendLine(`[Daemon] Socket error: ${err.message}`);
-
-        if (this.#connectionState === "connecting") {
-          this.#setConnectionState("disconnected");
-          reject(new Error(`Failed to connect to daemon: ${err.message}`));
-        } else {
+        if (!established) {
+          if (socket === this.#socket) this.#socket = null;
+          reject(err);
+        } else if (socket === this.#socket) {
           this.#onError.fire(err);
-          this.#handleDisconnect();
         }
       });
 
-      this.#socket.on("close", () => {
+      socket.on("close", () => {
+        if (socket !== this.#socket) {
+          // Detached by disconnect() or a newer attempt: settle, don't reconnect.
+          if (!established) reject(new Error("Connection attempt abandoned"));
+          return;
+        }
+        this.#socket = null;
+        if (!established) {
+          reject(new Error("Socket closed before connecting"));
+          return;
+        }
         this.#output.appendLine("[Daemon] Socket closed");
-        this.#handleDisconnect();
+        // Resetting on every accept would retry a daemon that accepts and
+        // immediately drops connections forever.
+        if (Date.now() - connectedAt >= this.#stableConnectionMs) this.#reconnectAttempts = 0;
+        this.#rejectPending(new Error("Connection lost"));
+        this.#scheduleReconnect();
       });
 
-      this.#socket.on("end", () => {
-        this.#output.appendLine("[Daemon] Socket ended");
-      });
+      socket.connect(this.#socketPath);
     });
   }
 
-  #handleData(data: Buffer): void {
-    this.#buffer += data.toString("utf-8");
-
-    // Process newline-delimited JSON messages
-    for (;;) {
-      const newlineIndex = this.#buffer.indexOf("\n");
-      if (newlineIndex === -1) {
-        break;
-      }
-      const line = this.#buffer.slice(0, newlineIndex);
-      this.#buffer = this.#buffer.slice(newlineIndex + 1);
-
-      if (line.trim()) {
-        this.#processMessage(line);
-      }
-    }
-  }
-
   #processMessage(line: string): void {
+    let message: JsonRpcMessage;
     try {
-      const message = JSON.parse(line) as JsonRpcResponse | JsonRpcNotification;
-
-      // Check if it's a notification (no id field or id is null)
-      if (!("id" in message) || message.id === null) {
-        this.#handleNotification(message as JsonRpcNotification);
-        return;
-      }
-
-      // It's a response - id is guaranteed to be a number at this point
-      const response = message as JsonRpcResponse;
-      const responseId = response.id as number;
-      const pending = this.#pendingRequests.get(responseId);
-
-      if (!pending) {
-        this.#output.appendLine(`[Daemon] Received response for unknown request ID: ${responseId}`);
-        return;
-      }
-
-      this.#pendingRequests.delete(responseId);
-      clearTimeout(pending.timeout);
-
-      if (response.error) {
-        pending.reject(new Error(`RPC error ${response.error.code}: ${response.error.message}`));
-      } else {
-        pending.resolve(response.result);
-      }
+      message = JSON.parse(line) as JsonRpcMessage;
     } catch (err) {
       this.#output.appendLine(`[Daemon] Failed to parse message: ${err}`);
+      return;
+    }
+
+    if (typeof message.id !== "number") {
+      if (message.method === Methods.WatchEvent) {
+        this.#onWatchEvent.fire(message.params as WatchEventParams);
+      } else if (message.error) {
+        // Go omits the id when it cannot parse a request (protocol.go Response).
+        this.#output.appendLine(
+          `[Daemon] RPC error ${message.error.code}: ${message.error.message}`,
+        );
+      } else {
+        this.#output.appendLine(`[Daemon] Unknown notification: ${message.method}`);
+      }
+      return;
+    }
+
+    const pending = this.#pendingRequests.get(message.id);
+    if (!pending) {
+      this.#output.appendLine(`[Daemon] Received response for unknown request ID: ${message.id}`);
+      return;
+    }
+    this.#pendingRequests.delete(message.id);
+    clearTimeout(pending.timeout);
+
+    if (message.error) {
+      pending.reject(new Error(`RPC error ${message.error.code}: ${message.error.message}`));
+    } else {
+      pending.resolve(message.result);
     }
   }
 
-  #handleNotification(notification: JsonRpcNotification): void {
-    switch (notification.method) {
-      case Methods.WatchEvent:
-        this.#onWatchEvent.fire(notification.params as WatchEventParams);
-        break;
-      default:
-        this.#output.appendLine(`[Daemon] Unknown notification: ${notification.method}`);
-    }
-  }
-
-  #handleDisconnect(): void {
-    // Clear all pending requests
-    for (const [id, pending] of this.#pendingRequests) {
+  #rejectPending(error: Error): void {
+    for (const pending of this.#pendingRequests.values()) {
       clearTimeout(pending.timeout);
-      pending.reject(new Error("Connection lost"));
-      this.#pendingRequests.delete(id);
+      pending.reject(error);
     }
+    this.#pendingRequests.clear();
+  }
 
-    this.#socket = null;
-    this.#buffer = "";
-
+  #scheduleReconnect(): void {
     if (this.#disposed) {
       this.#setConnectionState("disconnected");
       return;
     }
-
-    // Attempt reconnect if not at max attempts
-    if (this.#reconnectAttempts < this.#maxReconnectAttempts) {
-      this.#setConnectionState("reconnecting");
-      this.#scheduleReconnect();
-    } else {
-      this.#setConnectionState("disconnected");
+    if (this.#reconnectAttempts >= this.#maxReconnectAttempts) {
       this.#output.appendLine("[Daemon] Max reconnect attempts reached");
-    }
-  }
-
-  #scheduleReconnect(): void {
-    if (this.#reconnectTimer) {
-      clearTimeout(this.#reconnectTimer);
+      this.#setConnectionState("disconnected");
+      return;
     }
 
     const delay = this.#reconnectDelay * 2 ** this.#reconnectAttempts;
     this.#reconnectAttempts++;
-
     this.#output.appendLine(
       `[Daemon] Reconnecting in ${delay}ms (attempt ${this.#reconnectAttempts}/${this.#maxReconnectAttempts})`,
     );
+    this.#setConnectionState("reconnecting");
 
     this.#reconnectTimer = setTimeout(() => {
-      this.#doConnect().catch((err) => {
+      this.#reconnectTimer = null;
+      this.#openSocket().catch((err: Error) => {
         this.#output.appendLine(`[Daemon] Reconnect failed: ${err.message}`);
-        this.#handleDisconnect();
+        // connect() or disconnect() may have taken over meanwhile.
+        if (this.#connectionState === "reconnecting") this.#scheduleReconnect();
       });
     }, delay);
   }
 
-  /**
-   * Disconnect from the daemon socket
-   */
-  disconnect(): void {
+  #clearReconnectTimer(): void {
     if (this.#reconnectTimer) {
       clearTimeout(this.#reconnectTimer);
       this.#reconnectTimer = null;
     }
-
-    if (this.#socket) {
-      this.#socket.destroy();
-      this.#socket = null;
-    }
-
-    this.#setConnectionState("disconnected");
   }
 
   /**
-   * Send a JSON-RPC request and wait for response
+   * Disconnect from the daemon socket without reconnecting.
    */
-  async #sendRequest<T>(method: string, params?: unknown): Promise<T> {
-    if (!this.isConnected || !this.#socket) {
-      throw new Error("Not connected to daemon");
+  disconnect(): void {
+    this.#clearReconnectTimer();
+    const socket = this.#socket;
+    this.#socket = null; // detach first so its close event is ignored
+    socket?.destroy();
+    this.#rejectPending(new Error("Disconnected"));
+    this.#setConnectionState("disconnected");
+  }
+
+  #sendRequest<T>(method: string, params?: unknown, timeoutMs = this.#requestTimeout): Promise<T> {
+    const socket = this.#socket;
+    if (!this.isConnected || !socket) {
+      return Promise.reject(new Error("Not connected to daemon"));
     }
 
     const id = ++this.#requestId;
-    const request: JsonRpcRequest = {
-      jsonrpc: JSONRPC_VERSION,
-      id,
-      method,
-      params,
-    };
-
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.#pendingRequests.delete(id);
         reject(new Error(`Request timeout: ${method}`));
-      }, this.#requestTimeout);
+      }, timeoutMs);
 
       this.#pendingRequests.set(id, {
         resolve: resolve as (result: unknown) => void,
@@ -411,87 +354,45 @@ export class DaemonClient implements vscode.Disposable {
         timeout,
       });
 
-      const message = `${JSON.stringify(request)}\n`;
-      const socket = this.#socket;
-      if (!socket) {
-        reject(new Error("Socket is not connected"));
-        return;
-      }
-      socket.write(message, (err) => {
-        if (err) {
-          this.#pendingRequests.delete(id);
-          clearTimeout(timeout);
-          reject(new Error(`Failed to send request: ${err.message}`));
-        }
-      });
+      socket.write(
+        `${JSON.stringify({ jsonrpc: JSONRPC_VERSION, id, method, params })}\n`,
+        (err) => {
+          if (err && this.#pendingRequests.delete(id)) {
+            clearTimeout(timeout);
+            reject(new Error(`Failed to send request: ${err.message}`));
+          }
+        },
+      );
     });
   }
 
-  // RPC Methods
-
-  /**
-   * Ping the daemon to check if it's alive
-   */
-  async ping(): Promise<PingResult> {
-    return this.#sendRequest<PingResult>(Methods.Ping);
+  ping(timeoutMs?: number): Promise<PingResult> {
+    return this.#sendRequest<PingResult>(Methods.Ping, undefined, timeoutMs);
   }
 
-  /**
-   * Shutdown the daemon
-   */
-  async shutdown(): Promise<ShutdownResult> {
+  shutdown(): Promise<ShutdownResult> {
     return this.#sendRequest<ShutdownResult>(Methods.Shutdown);
   }
 
-  /**
-   * Start watching for file changes
-   */
-  async watchStart(params?: WatchStartParams): Promise<WatchStartResult> {
+  watchStart(params?: WatchStartParams): Promise<WatchStartResult> {
     return this.#sendRequest<WatchStartResult>(Methods.WatchStart, params);
   }
 
-  /**
-   * Stop watching for file changes
-   */
-  async watchStop(): Promise<WatchStopResult> {
+  watchStop(): Promise<WatchStopResult> {
     return this.#sendRequest<WatchStopResult>(Methods.WatchStop);
   }
 
-  /**
-   * Get current watch status
-   */
-  async watchStatus(): Promise<WatchStatusResult> {
+  watchStatus(): Promise<WatchStatusResult> {
     return this.#sendRequest<WatchStatusResult>(Methods.WatchStatus);
   }
 
   /**
-   * Run an update
-   */
-  async updateRun(params?: UpdateRunParams): Promise<UpdateRunResult> {
-    return this.#sendRequest<UpdateRunResult>(Methods.UpdateRun, params);
-  }
-
-  /**
-   * Get status of BUILD files
-   */
-  async statusGet(): Promise<StatusGetResult> {
-    return this.#sendRequest<StatusGetResult>(Methods.StatusGet);
-  }
-
-  /**
-   * Check if daemon is available (socket exists and is connectable)
+   * Check whether the daemon is reachable and answers a ping promptly.
    */
   async isAvailable(): Promise<boolean> {
     try {
-      // Check if socket file exists
-      const fs = await import("node:fs/promises");
-      await fs.access(this.#socketPath);
-
-      // Try to connect and ping
-      if (!this.isConnected) {
-        await this.connect();
-      }
-      await this.ping();
+      await this.connect();
+      await this.ping(PROBE_TIMEOUT_MS);
       return true;
     } catch {
       return false;
@@ -501,25 +402,8 @@ export class DaemonClient implements vscode.Disposable {
   dispose(): void {
     this.#disposed = true;
     this.disconnect();
-
     this.#onConnectionStateChanged.dispose();
     this.#onWatchEvent.dispose();
     this.#onError.dispose();
   }
-}
-
-/**
- * Get daemon configuration from VS Code settings
- */
-export function getDaemonConfig(): {
-  enabled: boolean;
-  socketPath: string | undefined;
-  autoStart: boolean;
-} {
-  const config = vscode.workspace.getConfiguration("bazelle");
-  return {
-    enabled: config.get<boolean>("daemon.enabled", true),
-    socketPath: config.get<string>("daemon.socketPath"),
-    autoStart: config.get<boolean>("daemon.autoStart", false),
-  };
 }

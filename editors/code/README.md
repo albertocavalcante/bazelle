@@ -10,6 +10,28 @@ VSCode integration for [Bazelle](https://github.com/albertocavalcante/bazelle), 
 - **Daemon Integration** - Connect to bazelle daemon for improved performance
 - **Starlark Syntax Highlighting** - Proper highlighting for BUILD files with gazelle directive support
 
+`Bazelle: Download Binary` installs the latest stable GitHub release, verified
+against the SHA-256 digest GitHub computed for the release asset, and records
+the extracted executable's SHA-256 so later activations re-verify it offline.
+While no stable release exists it falls back to the 2026-03-31 `nightly`
+build, whose archive and executable SHA-256 are pinned in
+`src/services/binaryResolver.ts`; if the moving `nightly` tag changes, that
+fallback is rejected until the pins are updated. Windows currently requires a
+configured or PATH-installed binary because no Windows CLI archive is published.
+
+To refresh the nightly pins, inspect the release and verify the exact archive locally:
+
+```bash
+gh release view nightly --repo albertocavalcante/bazelle --json tagName,publishedAt,assets
+gh release download nightly --repo albertocavalcante/bazelle --pattern 'bazelle-linux-amd64.tar.gz' --dir /tmp/bazelle-pin-check
+shasum -a 256 /tmp/bazelle-pin-check/bazelle-linux-amd64.tar.gz
+tar -xOzf /tmp/bazelle-pin-check/bazelle-linux-amd64.tar.gz bazelle | shasum -a 256
+```
+
+Repeat the archive and executable checks for each supported platform before
+changing the constants. Keep the `nightly` tag unchanged only if every new
+digest has been checked against the release assets.
+
 ## Commands
 
 | Command | Description |
@@ -85,7 +107,7 @@ When watch mode starts, the extension:
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `bazelle.path` | `"bazelle"` | Path to the bazelle executable |
-| `bazelle.autoUpdate` | `false` | Automatically update BUILD files on save |
+| `bazelle.autoUpdate` | `false` | Incrementally update the saved file's workspace folder on save (skipped while watching) |
 | `bazelle.statusBar.show` | `"onBazelWorkspace"` | When to show status bar: `always`, `onBazelWorkspace`, `never` |
 
 ### Watch Settings
@@ -100,7 +122,7 @@ When watch mode starts, the extension:
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `bazelle.daemon.enabled` | `true` | Use daemon when available (falls back to subprocess) |
-| `bazelle.daemon.socketPath` | `undefined` | Custom socket path (default: `~/.bazelle/daemon.sock`) |
+| `bazelle.daemon.socketPath` | `""` | Custom socket path, also used when starting the daemon (empty: `~/.bazelle/daemon.sock`) |
 | `bazelle.daemon.autoStart` | `false` | Automatically start daemon if not running |
 
 ### Example Configuration

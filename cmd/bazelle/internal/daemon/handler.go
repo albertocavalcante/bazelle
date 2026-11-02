@@ -19,13 +19,13 @@ type Handler struct {
 	defaults  []string // gazelle defaults
 
 	// Watch state
-	watchMu      sync.RWMutex
-	watcher      *watch.Watcher
-	watchCancel  context.CancelFunc
-	watchPaths   []string
-	watchLangs   []string
-	lastUpdate   time.Time
-	watching     bool
+	watchMu     sync.RWMutex
+	watcher     *watch.Watcher
+	watchCancel context.CancelFunc
+	watchPaths  []string
+	watchLangs  []string
+	lastUpdate  time.Time
+	watching    bool
 }
 
 // HandlerConfig configures the RPC handler.
@@ -136,6 +136,7 @@ func (h *Handler) handleWatchStart(client *ClientConn, req *Request) *Response {
 
 	// If already watching, return current status
 	if h.watching {
+		client.Subscribe()
 		result := WatchStartResult{
 			Status:    "already_watching",
 			Paths:     h.watchPaths,
