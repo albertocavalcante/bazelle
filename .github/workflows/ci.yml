@@ -44,6 +44,22 @@ jobs:
       - name: Run tests
         run: bazel test //...
 
+      # MODULE.bazel.lock pins every registry file by hash, so an offline or
+      # mirror-only build can serve them from the repository cache. Keep it
+      # current: fail if the build had to change it, and upload the file the
+      # build produced so it can be committed.
+      - name: Lockfile is up to date
+        id: lockfile
+        run: git diff --exit-code MODULE.bazel.lock
+
+      - name: Upload the updated lockfile
+        if: failure() && steps.lockfile.outcome == 'failure'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: MODULE.bazel.lock-${{ matrix.name }}
+          path: MODULE.bazel.lock
+          retention-days: 7
+
   buildifier:
     runs-on: ubuntu-24.04
     name: Lint (Buildifier)
