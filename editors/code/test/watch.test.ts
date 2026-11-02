@@ -95,6 +95,7 @@ interface FakeBazelle {
 }
 
 let bazelle: FakeBazelle;
+let warnings: string[] = [];
 
 function makeWatchService(): InstanceType<typeof WatchService> {
   bazelle = {
@@ -119,8 +120,10 @@ function makeWatchService(): InstanceType<typeof WatchService> {
     },
   };
   const output = { append: () => {}, appendLine: () => {} };
+  warnings = [];
   return new WatchService(bazelle as never, output as never, {
     getConfig: () => config,
+    warn: (message) => warnings.push(message),
     createDaemonClient: () => new FakeDaemonClient() as never,
   });
 }
@@ -360,4 +363,27 @@ test("stop kills the subprocess through the CLI service so Windows shims die too
   await watch.stop();
 
   expect(bazelle.killed).toEqual([child as FakeProcess]);
+});
+
+test("tells the user when a lost daemon forces a subprocess fallback", async () => {
+  reset();
+  const watch = makeWatchService();
+  await watch.start("/workspace");
+
+  FakeDaemonClient.instances[0]?.connectionState.fire("disconnected");
+
+  expect(watch.mode).toBe("subprocess");
+  expect(warnings).toHaveLength(1);
+  expect(warnings[0]).toContain("subprocess");
+});
+
+test("an unreachable daemon at start falls back without a warning", async () => {
+  reset();
+  FakeDaemonClient.failConnect = true;
+  const watch = makeWatchService();
+
+  await watch.start("/workspace");
+
+  expect(watch.mode).toBe("subprocess");
+  expect(warnings).toEqual([]);
 });

@@ -102,6 +102,7 @@ export class DaemonClient implements vscode.Disposable {
   readonly #requestTimeout: number;
   readonly #maxReconnectAttempts: number;
   readonly #reconnectDelay: number;
+  readonly #stableConnectionMs: number;
 
   // Only events from the current socket are acted on; a replaced or
   // deliberately closed socket's late events are ignored.
@@ -125,6 +126,8 @@ export class DaemonClient implements vscode.Disposable {
       requestTimeout?: number;
       maxReconnectAttempts?: number;
       reconnectDelay?: number;
+      /** A connection must stay up this long before reconnect attempts reset. */
+      stableConnectionMs?: number;
     },
   ) {
     this.#output = output;
@@ -132,6 +135,7 @@ export class DaemonClient implements vscode.Disposable {
     this.#requestTimeout = options?.requestTimeout ?? 30000;
     this.#maxReconnectAttempts = options?.maxReconnectAttempts ?? 5;
     this.#reconnectDelay = options?.reconnectDelay ?? 1000;
+    this.#stableConnectionMs = options?.stableConnectionMs ?? 10_000;
   }
 
   get socketPath(): string {
@@ -164,6 +168,7 @@ export class DaemonClient implements vscode.Disposable {
     if (this.#connecting) return this.#connecting;
 
     this.#clearReconnectTimer();
+    this.#reconnectAttempts = 0;
     this.#setConnectionState("connecting");
     this.#connecting = this.#openSocket()
       .catch((err: Error) => {
@@ -185,6 +190,7 @@ export class DaemonClient implements vscode.Disposable {
       socket.setEncoding("utf8");
       this.#socket = socket;
       let established = false;
+      let connectedAt = 0;
       const lines = new LineBuffer((line) => this.#processMessage(line));
 
       socket.on("connect", () => {
@@ -193,7 +199,7 @@ export class DaemonClient implements vscode.Disposable {
           return;
         }
         established = true;
-        this.#reconnectAttempts = 0;
+        connectedAt = Date.now();
         this.#output.appendLine(`[Daemon] Connected to ${this.#socketPath}`);
         this.#setConnectionState("connected");
         resolve();
@@ -225,6 +231,9 @@ export class DaemonClient implements vscode.Disposable {
           return;
         }
         this.#output.appendLine("[Daemon] Socket closed");
+        // Resetting on every accept would retry a daemon that accepts and
+        // immediately drops connections forever.
+        if (Date.now() - connectedAt >= this.#stableConnectionMs) this.#reconnectAttempts = 0;
         this.#rejectPending(new Error("Connection lost"));
         this.#scheduleReconnect();
       });

@@ -21,6 +21,8 @@ export interface WatchDependencies {
     "daemonEnabled" | "daemonSocketPath" | "daemonAutoStart" | "watchDebounceMs"
   >;
   createDaemonClient: (socketPath: string | undefined) => DaemonClient;
+  /** Surface a problem the user did not ask about (a lost daemon watch). */
+  warn: (message: string) => void;
 }
 
 /** Thrown inside a start attempt that a later stop()/start() superseded. */
@@ -55,6 +57,7 @@ export class WatchService implements vscode.Disposable {
     deps: WatchDependencies = {
       getConfig: getConfiguration,
       createDaemonClient: (socketPath) => new DaemonClient(output, { socketPath }),
+      warn: (message) => void vscode.window.showWarningMessage(message),
     },
   ) {
     this.#bazelle = bazelle;
@@ -191,7 +194,9 @@ export class WatchService implements vscode.Disposable {
         break;
       case "shutdown":
         // Fall back now instead of after the reconnect backoff (~31s).
-        if (this.#mode === "daemon" && this.#cwd) this.#fallBackToSubprocess(this.#cwd);
+        if (this.#mode === "daemon" && this.#cwd) {
+          this.#fallBackToSubprocess(this.#cwd, "the daemon shut down");
+        }
         break;
     }
   }
@@ -204,7 +209,7 @@ export class WatchService implements vscode.Disposable {
     switch (state) {
       case "disconnected":
         this.#output.appendLine("[Daemon] Lost connection");
-        this.#fallBackToSubprocess(cwd);
+        this.#fallBackToSubprocess(cwd, "lost the connection to the daemon");
         break;
       case "reconnecting":
         this.#output.appendLine("[Daemon] Attempting to reconnect...");
@@ -222,14 +227,15 @@ export class WatchService implements vscode.Disposable {
           .catch((err) => {
             if (this.#daemonClient !== client) return;
             this.#output.appendLine(`[Daemon] Watch registration failed: ${err}`);
-            this.#fallBackToSubprocess(cwd);
+            this.#fallBackToSubprocess(cwd, "the daemon did not restore the watch");
           });
         break;
     }
   }
 
-  #fallBackToSubprocess(cwd: string): void {
+  #fallBackToSubprocess(cwd: string, reason: string): void {
     this.#output.appendLine("Attempting fallback to subprocess mode...");
+    this.#deps.warn(`Bazelle watch: ${reason}; watching with a subprocess instead.`);
     this.#disposeDaemon();
     this.#startSubprocess(cwd);
   }

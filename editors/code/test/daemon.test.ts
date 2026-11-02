@@ -167,3 +167,47 @@ test("disconnect during connect settles the pending connect", async () => {
   await client.connect();
   expect(client.isConnected).toBe(true);
 });
+
+test("gives up on a daemon that keeps accepting and then dropping connections", async () => {
+  const path = socketPath();
+  let accepted = 0;
+  const server = net.createServer((socket) => {
+    accepted++;
+    setTimeout(() => socket.destroy(), 10);
+  });
+  await new Promise<void>((resolve) => server.listen(path, resolve));
+  cleanups.push(() => server.close());
+  const { client, log } = makeClient(path, {
+    reconnectDelay: 5,
+    maxReconnectAttempts: 3,
+    stableConnectionMs: 1000,
+  });
+  await client.connect();
+
+  await sleep(400);
+
+  expect(log.filter((line) => line.includes("Reconnecting in"))).toHaveLength(3);
+  expect(accepted).toBe(4);
+  expect(client.connectionState).toBe("disconnected");
+});
+
+test("a connection that stayed up earns a fresh set of reconnect attempts", async () => {
+  const path = socketPath();
+  const server = await listen(path, (socket, req) => pong(socket, req.id));
+  const { client, log } = makeClient(path, {
+    reconnectDelay: 5,
+    maxReconnectAttempts: 2,
+    stableConnectionMs: 30,
+  });
+  await client.connect();
+  const drop = () => (server as net.Server & { dropClients: () => void }).dropClients();
+
+  for (let i = 0; i < 3; i++) {
+    await sleep(60);
+    drop();
+  }
+  await sleep(60);
+
+  expect(log.filter((line) => line.includes("Max reconnect attempts"))).toHaveLength(0);
+  expect(client.isConnected).toBe(true);
+});
