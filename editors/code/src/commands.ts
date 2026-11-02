@@ -226,9 +226,10 @@ export function registerCommands(context: vscode.ExtensionContext, ctx: CommandC
   register("bazelle.daemon.stop", async () => {
     output.appendLine("Stopping bazelle daemon...");
     try {
-      await shutdownDaemon();
-      statusBar.setDaemonConnected(false);
-      void vscode.window.showInformationMessage("Daemon stopped");
+      const stopped = await shutdownDaemon();
+      statusBar.setDaemonConnected(!stopped);
+      if (stopped) void vscode.window.showInformationMessage("Daemon stopped");
+      else void vscode.window.showWarningMessage("Daemon acknowledged shutdown but still answers");
     } catch (err) {
       output.appendLine(`Failed to stop daemon: ${err}`);
       void vscode.window.showErrorMessage(

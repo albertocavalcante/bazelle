@@ -2,7 +2,9 @@
  * Configuration management for Bazelle extension
  */
 
+import { homedir } from "node:os";
 import * as vscode from "vscode";
+import { expandHome } from "./services/process";
 
 export interface BazelleConfig {
   bazellePath: string;
@@ -28,7 +30,9 @@ export function getConfiguration(): BazelleConfig {
     watchEnabled: config.get<boolean>("watch.enabled", false),
     watchDebounceMs: config.get<number>("watch.debounceMs", 500),
     daemonEnabled: config.get<boolean>("daemon.enabled", true),
-    daemonSocketPath: config.get<string>("daemon.socketPath") || undefined,
+    // Expanded here so the client and `daemon start --socket` agree on the path.
+    daemonSocketPath:
+      expandHome(config.get<string>("daemon.socketPath") ?? "", homedir()) || undefined,
     daemonAutoStart: config.get<boolean>("daemon.autoStart", false),
   };
 }

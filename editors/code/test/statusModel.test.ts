@@ -10,7 +10,7 @@ test("returns to the watching view after a one-off update finishes", () => {
   });
 });
 
-test("stays busy until every overlapping task finishes", () => {
+test("shows updating while any one-off task is in flight", () => {
   expect(describeStatus({ ...initialStatus, busy: 2 }).label).toBe("Updating...");
 });
 
