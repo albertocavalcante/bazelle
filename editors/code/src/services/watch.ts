@@ -34,6 +34,8 @@ export class WatchService implements vscode.Disposable {
 
   #process: ChildProcess | null = null;
   #daemonClient: DaemonClient | null = null;
+  // The daemon has one shared watcher; only stop it if this window started it.
+  #ownsDaemonWatch = false;
   #daemonSubscriptions: vscode.Disposable[] = [];
   #mode: WatchMode = "none";
   #cwd: string | null = null;
@@ -119,6 +121,7 @@ export class WatchService implements vscode.Disposable {
         this.#onEvent.fire({ type: "error", message: err.message });
       }),
     ];
+    let owns = false;
     const checkCurrent = () => {
       if (generation !== this.#generation) throw new Superseded("watch start superseded");
     };
@@ -144,6 +147,7 @@ export class WatchService implements vscode.Disposable {
       );
 
       const result = await client.watchStart({ paths: [cwd], debounce: watchDebounceMs });
+      owns = result.status === "watching";
       checkCurrent();
       requireWatchingPath(result.paths, cwd);
 
@@ -151,11 +155,14 @@ export class WatchService implements vscode.Disposable {
       this.#output.appendLine(`[Daemon] Watching paths: ${result.paths.join(", ")}`);
     } catch (err) {
       for (const d of subscriptions) d.dispose();
+      // A stop() that raced our watch/start must still stop what we started.
+      if (owns && err instanceof Superseded) await client.watchStop().catch(() => {});
       client.dispose();
       throw err;
     }
 
     this.#daemonClient = client;
+    this.#ownsDaemonWatch = owns;
     this.#daemonSubscriptions = subscriptions;
     this.#setMode("daemon");
     this.#onEvent.fire({ type: "started" });
@@ -182,6 +189,10 @@ export class WatchService implements vscode.Disposable {
       case "error":
         this.#onEvent.fire({ type: "error", message: event.message });
         break;
+      case "shutdown":
+        // Fall back now instead of after the reconnect backoff (~31s).
+        if (this.#mode === "daemon" && this.#cwd) this.#fallBackToSubprocess(this.#cwd);
+        break;
     }
   }
 
@@ -204,6 +215,7 @@ export class WatchService implements vscode.Disposable {
           .watchStart({ paths: [cwd], debounce: this.#deps.getConfig().watchDebounceMs })
           .then((result) => {
             if (this.#daemonClient !== client) return;
+            if (result.status === "watching") this.#ownsDaemonWatch = true;
             requireWatchingPath(result.paths, cwd);
             this.#output.appendLine("[Daemon] Watch registration restored");
           })
@@ -283,6 +295,8 @@ export class WatchService implements vscode.Disposable {
     this.#process = null;
     const client = this.#daemonClient;
     const subscriptions = this.#daemonSubscriptions;
+    const ownsWatch = this.#ownsDaemonWatch;
+    this.#ownsDaemonWatch = false;
     this.#daemonClient = null;
     this.#daemonSubscriptions = [];
     this.#setMode("none");
@@ -293,17 +307,24 @@ export class WatchService implements vscode.Disposable {
     }
     if (client) {
       for (const d of subscriptions) d.dispose();
-      try {
-        await client.watchStop();
-        this.#output.appendLine("[Daemon] Watch stopped");
-      } catch (err) {
-        this.#output.appendLine(`[Daemon] Error stopping watch: ${err}`);
+      if (ownsWatch) {
+        try {
+          await client.watchStop();
+          this.#output.appendLine("[Daemon] Watch stopped");
+        } catch (err) {
+          this.#output.appendLine(`[Daemon] Error stopping watch: ${err}`);
+        }
+      } else {
+        this.#output.appendLine(
+          "[Daemon] Leaving the shared daemon watch to the client that started it",
+        );
       }
       client.dispose();
     }
   }
 
   #disposeDaemon(): void {
+    this.#ownsDaemonWatch = false;
     for (const d of this.#daemonSubscriptions) d.dispose();
     this.#daemonSubscriptions = [];
     this.#daemonClient?.dispose();

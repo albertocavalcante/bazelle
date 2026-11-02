@@ -21,9 +21,11 @@ class FakeDaemonClient {
   static watchPaths = ["/workspace"];
   static nextWatchStart: Promise<{ status: string; paths: string[] }> | null = null;
   static connectGate: Promise<void> | null = null;
+  static watchStatus = "watching";
   readonly connectionState = new FakeEventEmitter<string>();
   readonly onConnectionStateChanged = this.connectionState.event;
-  readonly onWatchEvent = new FakeEventEmitter<unknown>().event;
+  readonly watchEvents = new FakeEventEmitter<unknown>();
+  readonly onWatchEvent = this.watchEvents.event;
   readonly onError = new FakeEventEmitter<Error>().event;
   watchStarts = 0;
   watchStartParams: unknown[] = [];
@@ -42,9 +44,12 @@ class FakeDaemonClient {
     this.watchStarts++;
     this.watchStartParams.push(params);
     if (FakeDaemonClient.nextWatchStart) return FakeDaemonClient.nextWatchStart;
-    return { status: "watching", paths: FakeDaemonClient.watchPaths };
+    return { status: FakeDaemonClient.watchStatus, paths: FakeDaemonClient.watchPaths };
   }
-  async watchStop(): Promise<void> {}
+  watchStops = 0;
+  async watchStop(): Promise<void> {
+    this.watchStops++;
+  }
   dispose(): void {
     this.disposed = true;
   }
@@ -119,6 +124,7 @@ function reset(): void {
   FakeDaemonClient.watchPaths = ["/workspace"];
   FakeDaemonClient.nextWatchStart = null;
   FakeDaemonClient.connectGate = null;
+  FakeDaemonClient.watchStatus = "watching";
   config.daemonEnabled = true;
   config.daemonAutoStart = false;
   config.watchDebounceMs = 500;
@@ -292,4 +298,47 @@ test("emits CLI watch events split across stdout chunks", async () => {
   child?.stdout.emit("data", Buffer.from('ated","build_file":"pkg/BUILD.bazel"}\n'));
 
   expect(events).toContainEqual({ type: "updated", path: "pkg/BUILD.bazel" });
+});
+
+test("stopping after watch/start was sent still stops the daemon watcher", async () => {
+  reset();
+  let reply: (value: { status: string; paths: string[] }) => void = () => {};
+  FakeDaemonClient.nextWatchStart = new Promise((resolve) => {
+    reply = resolve;
+  });
+  const watch = makeWatchService();
+  const starting = watch.start("/workspace");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(FakeDaemonClient.instances[0]?.watchStarts).toBe(1);
+
+  await watch.stop();
+  reply({ status: "watching", paths: ["/workspace"] });
+  await starting;
+
+  expect(watch.mode).toBe("none");
+  expect(FakeDaemonClient.instances[0]?.watchStops).toBe(1);
+  expect(FakeDaemonClient.instances[0]?.disposed).toBe(true);
+});
+
+test("does not stop a daemon watcher another client started", async () => {
+  reset();
+  FakeDaemonClient.watchStatus = "already_watching";
+  const watch = makeWatchService();
+  await watch.start("/workspace");
+
+  await watch.stop();
+
+  expect(FakeDaemonClient.instances[0]?.watchStops).toBe(0);
+  expect(FakeDaemonClient.instances[0]?.disposed).toBe(true);
+});
+
+test("falls back to a subprocess as soon as the daemon announces shutdown", async () => {
+  reset();
+  const watch = makeWatchService();
+  await watch.start("/workspace");
+
+  FakeDaemonClient.instances[0]?.watchEvents.fire({ type: "shutdown", timestamp: "t" });
+
+  expect(watch.mode).toBe("subprocess");
+  expect(FakeDaemonClient.instances[0]?.disposed).toBe(true);
 });
