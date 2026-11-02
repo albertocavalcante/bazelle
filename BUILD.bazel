@@ -68,8 +68,14 @@ package(default_visibility = ["//visibility:public"])
 
 # Virtual environment for Bazel-managed tools.
 # Run `bazel run //:bazel_env` and follow the direnv setup instructions.
+#
+# Tagged manual so `bazel build //...` skips it: bazel_env.bzl needs
+# rules_coreutils, which pulls `ape` binaries from cosmo.zip, a single host
+# with no mirror. Keeping it out of the wildcard means CI does not depend on
+# that host for a dev-only target.
 bazel_env(
     name = "bazel_env",
+    tags = ["manual"],
     tools = {
         "bazelle": "//cmd/bazelle",
         "buildifier": "@buildifier_prebuilt//:buildifier",
