@@ -271,6 +271,10 @@ func TestHandler_HandleStatusGet_NotImplemented(t *testing.T) {
 	}
 
 	resp := handler.HandleRequest(&ClientConn{}, req)
+	if resp == nil {
+		t.Fatal("HandleRequest returned no response for a request with an ID")
+		return // for nilaway
+	}
 	// A stub must not report a fake "not stale" result.
 	if resp.Error == nil {
 		t.Fatalf("status/get returned a result for an unimplemented method: %s", resp.Result)
