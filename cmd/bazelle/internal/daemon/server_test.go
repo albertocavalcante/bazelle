@@ -631,17 +631,17 @@ func TestClientConn_SubscribeUnsubscribe(t *testing.T) {
 	t.Parallel()
 	cc := &ClientConn{}
 
-	if cc.subscribed {
+	if cc.subscribed.Load() {
 		t.Error("Should not be subscribed initially")
 	}
 
 	cc.Subscribe()
-	if !cc.subscribed {
+	if !cc.subscribed.Load() {
 		t.Error("Should be subscribed after Subscribe()")
 	}
 
 	cc.Unsubscribe()
-	if cc.subscribed {
+	if cc.subscribed.Load() {
 		t.Error("Should not be subscribed after Unsubscribe()")
 	}
 }

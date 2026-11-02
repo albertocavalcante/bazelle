@@ -111,9 +111,13 @@ export class WatchService implements vscode.Disposable {
   async #startDaemon(cwd: string, generation: number): Promise<void> {
     const { daemonSocketPath, daemonAutoStart, watchDebounceMs } = this.#deps.getConfig();
     const client = this.#deps.createDaemonClient(daemonSocketPath);
+    // Events can arrive in the same data chunk as the watch/start reply,
+    // before this client becomes current; hold them and replay them below.
+    let early: WatchEventParams[] | null = [];
     const subscriptions = [
       client.onWatchEvent((event) => {
-        if (this.#daemonClient === client) this.#handleDaemonEvent(event);
+        if (early) early.push(event);
+        else if (this.#daemonClient === client) this.#handleDaemonEvent(event);
       }),
       client.onConnectionStateChanged((state) => {
         if (this.#daemonClient === client) this.#handleConnectionStateChange(state);
@@ -168,6 +172,12 @@ export class WatchService implements vscode.Disposable {
     this.#daemonSubscriptions = subscriptions;
     this.#setMode("daemon");
     this.#onEvent.fire({ type: "started" });
+
+    const pending = early;
+    early = null;
+    for (const event of pending) {
+      if (this.#daemonClient === client) this.#handleDaemonEvent(event);
+    }
   }
 
   #handleDaemonEvent(event: WatchEventParams): void {
@@ -188,6 +198,14 @@ export class WatchService implements vscode.Disposable {
         break;
       case "error":
         this.#onEvent.fire({ type: "error", message: event.message });
+        break;
+      case "stopped":
+        // The daemon's watcher died on its own (e.g. a watch limit); restarting
+        // it would likely fail the same way, so watch with a subprocess.
+        this.#output.appendLine(`[Daemon] Watcher stopped: ${event.message ?? ""}`);
+        if (this.#mode === "daemon" && this.#cwd) {
+          this.#fallBackToSubprocess(this.#cwd, "the daemon watcher stopped");
+        }
         break;
       case "shutdown":
         this.#output.appendLine(`[Daemon] Shutting down at ${event.timestamp}`);
@@ -336,7 +354,7 @@ export class WatchService implements vscode.Disposable {
         }
       } else {
         this.#output.appendLine(
-          "[Daemon] Leaving the shared daemon watch to the client that started it",
+          "[Daemon] Closing the connection releases this client's share of the daemon watch",
         );
       }
       client.dispose();

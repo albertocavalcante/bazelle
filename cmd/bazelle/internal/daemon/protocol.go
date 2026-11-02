@@ -20,7 +20,9 @@
 // All communication uses JSON-RPC 2.0 with newline-delimited messages.
 // Supported methods: ping, shutdown, watch/start, watch/stop, watch/status,
 // update/run, status/get. The server sends watch/event notifications to
-// subscribed clients when file changes are detected.
+// subscribed clients when file changes are detected, when BUILD files are
+// updated, on watcher errors, and with type "stopped" when the watcher ends on
+// its own (clients must call watch/start again to resume).
 //
 // # Usage
 //
@@ -69,7 +71,7 @@ type Request struct {
 // Response represents a JSON-RPC 2.0 response.
 type Response struct {
 	JSONRPC string          `json:"jsonrpc"`
-	ID      *int64          `json:"id,omitempty"`
+	ID      *int64          `json:"id"` // null when the request id is unknown
 	Result  json.RawMessage `json:"result,omitempty"`
 	Error   *RPCError       `json:"error,omitempty"`
 }
@@ -226,7 +228,7 @@ type WatchStatusResult struct {
 
 // WatchEventParams are the parameters for watch/event notifications.
 type WatchEventParams struct {
-	Type        string   `json:"type"` // "change", "update", "error"
+	Type        string   `json:"type"` // "change", "update", "error", "stopped", "shutdown"
 	Directories []string `json:"directories,omitempty"`
 	Files       []string `json:"files,omitempty"`
 	Message     string   `json:"message,omitempty"`

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -24,6 +25,8 @@ type Server struct {
 	handler   *Handler
 	startTime time.Time
 	version   string
+
+	writeTimeout time.Duration // per-message write limit; 0 means defaultWriteTimeout
 
 	// Client management
 	clients   map[*ClientConn]struct{}
@@ -44,10 +47,14 @@ type ClientConn struct {
 	encoder    *json.Encoder
 	decoder    *json.Decoder
 	encoderMu  sync.Mutex
-	subscribed bool // whether client wants watch events
+	subscribed atomic.Bool // whether client wants watch events
 	closed     bool
 	closeMu    sync.Mutex
 }
+
+// defaultWriteTimeout bounds each write so a client that stops reading
+// cannot stall broadcasts, the watcher, or shutdown.
+const defaultWriteTimeout = 5 * time.Second
 
 // ServerConfig configures the daemon server.
 type ServerConfig struct {
@@ -192,6 +199,7 @@ func (s *Server) handleClient(client *ClientConn) {
 	logger := log.Component("daemon")
 	defer func() {
 		client.Close()
+		s.handler.ClientDisconnected(client)
 		s.clientsMu.Lock()
 		delete(s.clients, client)
 		clientCount := len(s.clients)
@@ -205,13 +213,14 @@ func (s *Server) handleClient(client *ClientConn) {
 			if err == io.EOF || errors.Is(err, net.ErrClosed) {
 				return // Client disconnected
 			}
-			// Parse error - send error response
+			// json.Decoder errors are sticky, so the stream cannot recover:
+			// report the parse error once (best effort) and drop the client.
 			logger.Debugw("failed to decode request", "error", err)
 			resp := NewErrorResponse(nil, ErrCodeParseError, "Parse error", nil)
 			if err := client.Send(resp); err != nil {
 				logger.Debugw("failed to send error response", "error", err)
 			}
-			continue
+			return
 		}
 
 		// Validate JSON-RPC version
@@ -223,13 +232,19 @@ func (s *Server) handleClient(client *ClientConn) {
 			continue
 		}
 
-		// Handle the request
+		// Handle the request and write its reply while holding the encoder,
+		// so events triggered by the request (e.g. a watcher that fails at
+		// once) queue behind the reply instead of overtaking it.
+		client.encoderMu.Lock()
 		resp := s.handler.HandleRequest(client, &req)
+		var err error
 		if resp != nil {
-			if err := client.Send(resp); err != nil {
-				logger.Debugw("failed to send response", "error", err)
-				return
-			}
+			err = client.sendLocked(resp)
+		}
+		client.encoderMu.Unlock()
+		if err != nil {
+			logger.Debugw("failed to send response", "error", err)
+			return
 		}
 	}
 }
@@ -320,12 +335,17 @@ func (s *Server) notifyShutdown() {
 // Broadcast sends a notification to all subscribed clients.
 func (s *Server) Broadcast(notif *Notification) {
 	s.clientsMu.RLock()
-	defer s.clientsMu.RUnlock()
-
+	var targets []*ClientConn
 	for client := range s.clients {
-		if client.subscribed {
-			_ = client.Send(notif)
+		if client.subscribed.Load() {
+			targets = append(targets, client)
 		}
+	}
+	s.clientsMu.RUnlock()
+
+	// Send outside clientsMu so a slow client cannot block accept/disconnect.
+	for _, client := range targets {
+		_ = client.Send(notif)
 	}
 }
 
@@ -368,7 +388,22 @@ func (c *ClientConn) Send(msg any) error {
 
 	c.encoderMu.Lock()
 	defer c.encoderMu.Unlock()
-	return c.encoder.Encode(msg)
+	return c.sendLocked(msg)
+}
+
+// sendLocked writes msg with a deadline; the caller holds encoderMu. A failed
+// write may leave a partial message on the stream, so it closes the client.
+func (c *ClientConn) sendLocked(msg any) error {
+	timeout := defaultWriteTimeout
+	if c.server != nil && c.server.writeTimeout > 0 {
+		timeout = c.server.writeTimeout
+	}
+	_ = c.conn.SetWriteDeadline(time.Now().Add(timeout))
+	if err := c.encoder.Encode(msg); err != nil {
+		c.Close()
+		return err
+	}
+	return nil
 }
 
 // Close closes the client connection.
@@ -385,10 +420,10 @@ func (c *ClientConn) Close() {
 
 // Subscribe enables event notifications for this client.
 func (c *ClientConn) Subscribe() {
-	c.subscribed = true
+	c.subscribed.Store(true)
 }
 
 // Unsubscribe disables event notifications for this client.
 func (c *ClientConn) Unsubscribe() {
-	c.subscribed = false
+	c.subscribed.Store(false)
 }

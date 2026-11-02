@@ -70,7 +70,7 @@ export interface WatchStatusResult {
 }
 
 export interface WatchEventParams {
-  type: "change" | "update" | "error" | "shutdown";
+  type: "change" | "update" | "error" | "stopped" | "shutdown";
   directories?: string[];
   files?: string[];
   message?: string;
@@ -255,7 +255,7 @@ export class DaemonClient implements vscode.Disposable {
       if (message.method === Methods.WatchEvent) {
         this.#onWatchEvent.fire(message.params as WatchEventParams);
       } else if (message.error) {
-        // Go omits the id when it cannot parse a request (protocol.go Response).
+        // Go sends "id": null when it cannot parse a request (protocol.go Response).
         this.#output.appendLine(
           `[Daemon] RPC error ${message.error.code}: ${message.error.message}`,
         );

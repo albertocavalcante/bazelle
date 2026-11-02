@@ -29,6 +29,12 @@ type Config struct {
 	NoColor         bool
 	JSON            bool
 	GazelleDefaults []string
+
+	// Optional hooks. They run on watcher and debouncer goroutines, may run
+	// concurrently, and may fire shortly after Run returns.
+	OnChange func(dirs []string)                      // debounced change, before Gazelle runs
+	OnUpdate func(dirs []string, buildFiles []string) // Gazelle updated these dirs
+	OnError  func(err error)                          // non-fatal error; watching continues
 }
 
 // Watcher watches for file changes and updates BUILD files.
@@ -115,8 +121,16 @@ func (w *Watcher) Run(ctx context.Context) error {
 			if !ok {
 				return nil
 			}
-			w.logger.Error(err)
+			w.reportError(err)
 		}
+	}
+}
+
+// reportError logs a non-fatal error and passes it to the OnError hook.
+func (w *Watcher) reportError(err error) {
+	w.logger.Error(err)
+	if w.config.OnError != nil {
+		w.config.OnError(err)
 	}
 }
 
@@ -251,6 +265,9 @@ func (w *Watcher) handleChangedDirs(dirs []string) {
 	slices.Sort(dirs)
 
 	w.logger.Updating(dirs)
+	if w.config.OnChange != nil {
+		w.config.OnChange(dirs)
+	}
 
 	// Convert to targets
 	targets := make([]string, len(dirs))
@@ -269,21 +286,25 @@ func (w *Watcher) handleChangedDirs(dirs []string) {
 
 	// Run gazelle
 	if err := runner.Run(w.config.Languages, w.config.Root, args...); err != nil {
-		w.logger.Error(fmt.Errorf("gazelle failed: %w", err))
+		w.reportError(fmt.Errorf("gazelle failed: %w", err))
 		return
 	}
 
 	// Refresh tracker state
 	ctx := context.Background()
 	if err := w.tracker.Refresh(ctx); err != nil {
-		w.logger.Error(fmt.Errorf("failed to update state: %w", err))
+		w.reportError(fmt.Errorf("failed to update state: %w", err))
 		return
 	}
 
 	// Log success for each directory, checking for actual BUILD file
-	for _, dir := range dirs {
-		buildFile := w.findBuildFile(dir)
-		w.logger.Updated(buildFile)
+	buildFiles := make([]string, len(dirs))
+	for i, dir := range dirs {
+		buildFiles[i] = w.findBuildFile(dir)
+		w.logger.Updated(buildFiles[i])
+	}
+	if w.config.OnUpdate != nil {
+		w.config.OnUpdate(dirs, buildFiles)
 	}
 }
 

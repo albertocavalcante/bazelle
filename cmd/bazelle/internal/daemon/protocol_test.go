@@ -852,3 +852,21 @@ func TestLargeParams(t *testing.T) {
 		t.Errorf("Got %d paths, want %d", len(got.Paths), len(paths))
 	}
 }
+
+// JSON-RPC 2.0 §5: an error response whose request id is unknown (e.g. a
+// parse error) must still carry "id": null.
+func TestNewErrorResponse_NilIDMarshalsNull(t *testing.T) {
+	t.Parallel()
+	data, err := json.Marshal(NewErrorResponse(nil, ErrCodeParseError, "Parse error", nil))
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	id, ok := fields["id"]
+	if !ok || string(id) != "null" {
+		t.Errorf("id = %s (present=%v), want null; payload %s", id, ok, data)
+	}
+}

@@ -130,35 +130,15 @@ func TestHandler_HandlePing(t *testing.T) {
 	}
 }
 
+// JSON-RPC 2.0 §4.1: a request without an id is a notification. It must
+// not crash the daemon and must not get a reply.
 func TestHandler_HandlePing_NilID(t *testing.T) {
 	t.Parallel()
-	server := &Server{
-		startTime: time.Now(),
-		version:   "1.0.0",
-	}
-	handler := NewHandler(server)
+	handler := NewHandler(&Server{startTime: time.Now(), version: "1.0.0"})
 
-	req := &Request{
-		JSONRPC: JSONRPCVersion,
-		ID:      nil, // Notification-style (no ID means no response expected per JSON-RPC 2.0)
-		Method:  MethodPing,
-	}
-
-	// BUG: The handler currently panics when dereferencing nil ID.
-	// Per JSON-RPC 2.0, requests without ID are notifications and should not receive a response.
-	// This test documents the current behavior - the handler should be fixed to check for nil ID.
-	defer func() {
-		if r := recover(); r != nil {
-			// This is the current buggy behavior - handler panics on nil ID
-			t.Logf("Known bug: Handler panics on nil ID: %v", r)
-		}
-	}()
-
-	mockClient := &ClientConn{}
-	resp := handler.HandleRequest(mockClient, req)
-	// If we get here, the handler was fixed to handle nil ID
-	if resp != nil {
-		t.Log("Handler now handles nil ID without panic")
+	req := &Request{JSONRPC: JSONRPCVersion, Method: MethodPing}
+	if resp := handler.HandleRequest(&ClientConn{}, req); resp != nil {
+		t.Errorf("notification got a reply: %+v", resp)
 	}
 }
 
@@ -280,13 +260,9 @@ func TestHandler_HandleWatchStop_NotWatching(t *testing.T) {
 	}
 }
 
-func TestHandler_HandleStatusGet(t *testing.T) {
+func TestHandler_HandleStatusGet_NotImplemented(t *testing.T) {
 	t.Parallel()
-	server := &Server{
-		startTime: time.Now(),
-		version:   "1.0.0",
-	}
-	handler := NewHandler(server)
+	handler := NewHandler(&Server{startTime: time.Now(), version: "1.0.0"})
 
 	req := &Request{
 		JSONRPC: JSONRPCVersion,
@@ -294,23 +270,13 @@ func TestHandler_HandleStatusGet(t *testing.T) {
 		Method:  MethodStatusGet,
 	}
 
-	mockClient := &ClientConn{}
-	resp := handler.HandleRequest(mockClient, req)
-	if resp == nil {
-		t.Fatal("Response should not be nil")
+	resp := handler.HandleRequest(&ClientConn{}, req)
+	// A stub must not report a fake "not stale" result.
+	if resp.Error == nil {
+		t.Fatalf("status/get returned a result for an unimplemented method: %s", resp.Result)
 	}
-	if resp.Error != nil {
-		t.Fatalf("Unexpected error: %v", resp.Error)
-	}
-
-	var result StatusGetResult
-	if err := json.Unmarshal(resp.Result, &result); err != nil {
-		t.Fatalf("Failed to unmarshal result: %v", err)
-	}
-
-	// Default implementation returns not stale
-	if result.Stale {
-		t.Error("Stale should be false by default")
+	if resp.Error.Code != ErrCodeMethodNotFound {
+		t.Errorf("Error code = %d, want %d", resp.Error.Code, ErrCodeMethodNotFound)
 	}
 }
 
@@ -333,11 +299,11 @@ func TestHandler_HandleUpdateRun_NotImplemented(t *testing.T) {
 	if resp == nil {
 		t.Fatal("Response should not be nil")
 	}
-	// Currently returns error (not implemented)
 	if resp.Error == nil {
-		t.Log("UpdateRun is now implemented")
-	} else if resp.Error.Code != ErrCodeInternalError {
-		t.Errorf("Error code = %d, want %d", resp.Error.Code, ErrCodeInternalError)
+		t.Fatalf("update/run returned a result for an unimplemented method: %s", resp.Result)
+	}
+	if resp.Error.Code != ErrCodeMethodNotFound {
+		t.Errorf("Error code = %d, want %d", resp.Error.Code, ErrCodeMethodNotFound)
 	}
 }
 
@@ -389,11 +355,9 @@ func TestHandler_HandleUpdateRun_InvalidParams(t *testing.T) {
 	if resp == nil {
 		t.Fatal("Response should not be nil")
 	}
-	if resp.Error == nil {
-		t.Fatal("Expected error for invalid params")
-	}
-	if resp.Error.Code != ErrCodeInvalidParams {
-		t.Errorf("Error code = %d, want %d", resp.Error.Code, ErrCodeInvalidParams)
+	// Not implemented takes precedence over parameter validation.
+	if resp.Error == nil || resp.Error.Code != ErrCodeMethodNotFound {
+		t.Errorf("Error = %+v, want code %d", resp.Error, ErrCodeMethodNotFound)
 	}
 }
 
@@ -634,7 +598,7 @@ func TestHandler_WatchStartAlreadyWatching(t *testing.T) {
 	if len(result.Paths) != 1 || result.Paths[0] != "/existing" {
 		t.Errorf("Paths = %v, want [/existing]", result.Paths)
 	}
-	if !mockClient.subscribed {
+	if !mockClient.subscribed.Load() {
 		t.Error("reconnected client should receive events from the existing watcher")
 	}
 }
@@ -651,6 +615,8 @@ func TestHandler_HandleWatchStop_WithWatcher(t *testing.T) {
 	cancelled := false
 	handler.watching = true
 	handler.watchCancel = func() { cancelled = true }
+	mockClient := &ClientConn{}
+	handler.subscribeLocked(mockClient)
 
 	req := &Request{
 		JSONRPC: JSONRPCVersion,
@@ -658,7 +624,6 @@ func TestHandler_HandleWatchStop_WithWatcher(t *testing.T) {
 		Method:  MethodWatchStop,
 	}
 
-	mockClient := &ClientConn{}
 	resp := handler.HandleRequest(mockClient, req)
 	if resp == nil {
 		t.Fatal("Response should not be nil")

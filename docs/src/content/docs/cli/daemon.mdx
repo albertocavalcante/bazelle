@@ -222,12 +222,16 @@ The daemon uses JSON-RPC 2.0 over Unix sockets with newline-delimited messages.
 |--------|-----------|-------------|
 | `ping` | client → server | Health check, returns version and uptime |
 | `shutdown` | client → server | Request graceful shutdown |
-| `watch/start` | client → server | Start watching paths |
-| `watch/stop` | client → server | Stop watching |
+| `watch/start` | client → server | Subscribe this connection to the shared watcher, starting it if needed |
+| `watch/stop` | client → server | Release this connection's subscription; the watcher stops with the last subscriber |
 | `watch/status` | client → server | Get current watch status |
-| `watch/event` | server → client | File change notification |
-| `update/run` | client → server | Trigger manual BUILD file update |
-| `status/get` | client → server | Get staleness status |
+| `watch/event` | server → client | Watch notification: `change`, `update`, `error`, `stopped`, or `shutdown` |
+| `update/run` | client → server | Not implemented yet (returns error `-32601`) |
+| `status/get` | client → server | Not implemented yet (returns error `-32601`) |
+
+A connection that disconnects releases its subscription. If the watcher
+stops on its own, subscribers receive an `error` event with the cause (if any) and
+then a `stopped` event, and must call `watch/start` again to resume.
 
 <Aside type="note">
 The protocol specification is defined in [daemon-mode-phase1.md](/bazelle/specs/daemon-mode-phase1/).
