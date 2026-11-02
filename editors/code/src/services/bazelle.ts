@@ -4,12 +4,12 @@
 
 import { type ChildProcess, spawn } from "node:child_process";
 import type * as vscode from "vscode";
+import { parseStatusOutput, type StatusSummary } from "./cliOutput";
 
 export interface CommandResult {
   success: boolean;
   output?: string;
   error?: string;
-  staleCount?: number;
 }
 
 export interface UpdateOptions {
@@ -51,23 +51,14 @@ export class BazelleService {
     return this.#run(args, cwd);
   }
 
-  async status(cwd: string): Promise<CommandResult> {
+  async status(cwd: string): Promise<CommandResult & { summary?: StatusSummary }> {
     const result = await this.#run(["status", "--json"], cwd);
-
-    if (result.success && result.output) {
-      let staleCount = 0;
-      for (const line of result.output.trim().split("\n")) {
-        try {
-          const data = JSON.parse(line);
-          if (data.stale) staleCount++;
-        } catch {
-          // Not JSON
-        }
-      }
-      result.staleCount = staleCount;
+    if (!result.success) return result;
+    try {
+      return { ...result, summary: parseStatusOutput(result.output ?? "") };
+    } catch (err) {
+      return { success: false, output: result.output, error: `Unexpected status output: ${err}` };
     }
-
-    return result;
   }
 
   async init(cwd: string): Promise<CommandResult> {

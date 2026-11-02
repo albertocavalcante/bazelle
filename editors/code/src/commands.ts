@@ -116,11 +116,13 @@ export function registerCommands(
     const result = await bazelle.status(cwd);
     output.show();
 
-    if (result.success) {
-      const msg =
-        result.staleCount === 0
-          ? "All BUILD files up to date"
-          : `${result.staleCount} directories have stale BUILD files`;
+    if (result.summary) {
+      const { stale, staleDirs, error } = result.summary;
+      const msg = error
+        ? `Status unknown: ${error}. Run "Bazelle: Update BUILD Files" first.`
+        : stale
+          ? `${staleDirs.length} directories have stale BUILD files`
+          : "All BUILD files up to date";
       void vscode.window.showInformationMessage(msg);
     } else {
       void vscode.window.showErrorMessage(`Status failed: ${result.error}`);
