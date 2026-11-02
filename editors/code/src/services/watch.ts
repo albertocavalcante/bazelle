@@ -7,13 +7,21 @@
 import type { ChildProcess } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import * as vscode from "vscode";
-import { getConfiguration } from "../configuration";
+import { type BazelleConfig, getConfiguration } from "../configuration";
 import type { BazelleService } from "./bazelle";
 import { LineBuffer, parseWatchEvent, type WatchEvent } from "./cliOutput";
 import { DaemonClient, type DaemonConnectionState, type WatchEventParams } from "./daemon";
 
 export type { WatchEvent } from "./cliOutput";
 export type WatchMode = "daemon" | "subprocess" | "none";
+
+export interface WatchDependencies {
+  getConfig: () => Pick<
+    BazelleConfig,
+    "daemonEnabled" | "daemonSocketPath" | "daemonAutoStart" | "watchDebounceMs"
+  >;
+  createDaemonClient: (socketPath: string | undefined) => DaemonClient;
+}
 
 /** Thrown inside a start attempt that a later stop()/start() superseded. */
 class Superseded extends Error {}
@@ -37,9 +45,19 @@ export class WatchService implements vscode.Disposable {
   readonly onEvent = this.#onEvent.event;
   readonly onModeChanged = this.#onModeChanged.event;
 
-  constructor(bazelle: BazelleService, output: vscode.OutputChannel) {
+  readonly #deps: WatchDependencies;
+
+  constructor(
+    bazelle: BazelleService,
+    output: vscode.OutputChannel,
+    deps: WatchDependencies = {
+      getConfig: getConfiguration,
+      createDaemonClient: (socketPath) => new DaemonClient(output, { socketPath }),
+    },
+  ) {
     this.#bazelle = bazelle;
     this.#output = output;
+    this.#deps = deps;
   }
 
   get isRunning(): boolean {
@@ -61,7 +79,7 @@ export class WatchService implements vscode.Disposable {
     const generation = ++this.#generation;
     this.#starting = true;
     this.#cwd = cwd;
-    const config = getConfiguration();
+    const config = this.#deps.getConfig();
 
     try {
       if (config.daemonEnabled) {
@@ -86,8 +104,8 @@ export class WatchService implements vscode.Disposable {
    * Start watch via daemon connection
    */
   async #startDaemon(cwd: string, generation: number): Promise<void> {
-    const { daemonSocketPath, daemonAutoStart, watchDebounceMs } = getConfiguration();
-    const client = new DaemonClient(this.#output, { socketPath: daemonSocketPath });
+    const { daemonSocketPath, daemonAutoStart, watchDebounceMs } = this.#deps.getConfig();
+    const client = this.#deps.createDaemonClient(daemonSocketPath);
     const subscriptions = [
       client.onWatchEvent((event) => {
         if (this.#daemonClient === client) this.#handleDaemonEvent(event);
@@ -183,7 +201,7 @@ export class WatchService implements vscode.Disposable {
       case "connected":
         this.#output.appendLine("[Daemon] Reconnected");
         void client
-          .watchStart({ paths: [cwd], debounce: getConfiguration().watchDebounceMs })
+          .watchStart({ paths: [cwd], debounce: this.#deps.getConfig().watchDebounceMs })
           .then((result) => {
             if (this.#daemonClient !== client) return;
             requireWatchingPath(result.paths, cwd);
@@ -209,7 +227,7 @@ export class WatchService implements vscode.Disposable {
    */
   #startSubprocess(cwd: string): void {
     this.#output.appendLine("Starting watch mode (subprocess)...");
-    const child = this.#bazelle.watch(cwd, getConfiguration().watchDebounceMs);
+    const child = this.#bazelle.watch(cwd, this.#deps.getConfig().watchDebounceMs);
     this.#process = child;
 
     const decoder = new StringDecoder("utf8");

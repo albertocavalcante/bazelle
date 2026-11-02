@@ -58,8 +58,6 @@ const config = {
 };
 
 mock.module("vscode", () => ({ EventEmitter: FakeEventEmitter }));
-mock.module("../src/services/daemon", () => ({ DaemonClient: FakeDaemonClient }));
-mock.module("../src/configuration", () => ({ getConfiguration: () => config }));
 
 const { WatchService } = await import("../src/services/watch");
 
@@ -109,7 +107,10 @@ function makeWatchService(): InstanceType<typeof WatchService> {
     },
   };
   const output = { append: () => {}, appendLine: () => {} };
-  return new WatchService(bazelle as never, output as never);
+  return new WatchService(bazelle as never, output as never, {
+    getConfig: () => config,
+    createDaemonClient: () => new FakeDaemonClient() as never,
+  });
 }
 
 function reset(): void {
