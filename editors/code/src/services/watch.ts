@@ -111,9 +111,13 @@ export class WatchService implements vscode.Disposable {
   async #startDaemon(cwd: string, generation: number): Promise<void> {
     const { daemonSocketPath, daemonAutoStart, watchDebounceMs } = this.#deps.getConfig();
     const client = this.#deps.createDaemonClient(daemonSocketPath);
+    // Events can arrive in the same data chunk as the watch/start reply,
+    // before this client becomes current; hold them and replay them below.
+    let early: WatchEventParams[] | null = [];
     const subscriptions = [
       client.onWatchEvent((event) => {
-        if (this.#daemonClient === client) this.#handleDaemonEvent(event);
+        if (early) early.push(event);
+        else if (this.#daemonClient === client) this.#handleDaemonEvent(event);
       }),
       client.onConnectionStateChanged((state) => {
         if (this.#daemonClient === client) this.#handleConnectionStateChange(state);
@@ -168,6 +172,12 @@ export class WatchService implements vscode.Disposable {
     this.#daemonSubscriptions = subscriptions;
     this.#setMode("daemon");
     this.#onEvent.fire({ type: "started" });
+
+    const pending = early;
+    early = null;
+    for (const event of pending) {
+      if (this.#daemonClient === client) this.#handleDaemonEvent(event);
+    }
   }
 
   #handleDaemonEvent(event: WatchEventParams): void {
