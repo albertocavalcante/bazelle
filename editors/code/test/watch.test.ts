@@ -362,6 +362,23 @@ test("falls back to a subprocess as soon as the daemon announces shutdown", asyn
   expect(FakeDaemonClient.instances[0]?.disposed).toBe(true);
 });
 
+test("falls back to a subprocess when the daemon's watcher stops on its own", async () => {
+  reset();
+  const watch = makeWatchService();
+  await watch.start("/workspace");
+
+  FakeDaemonClient.instances[0]?.watchEvents.fire({
+    type: "stopped",
+    message: "watcher stopped; call watch/start to resume",
+    timestamp: "t",
+  });
+
+  expect(watch.mode).toBe("subprocess");
+  expect(FakeDaemonClient.instances[0]?.disposed).toBe(true);
+  expect(warnings).toHaveLength(1);
+  expect(warnings[0]).toContain("watcher stopped");
+});
+
 test("stop kills the subprocess through the CLI service so Windows shims die too", async () => {
   reset();
   config.daemonEnabled = false;

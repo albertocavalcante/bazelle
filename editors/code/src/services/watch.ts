@@ -189,6 +189,14 @@ export class WatchService implements vscode.Disposable {
       case "error":
         this.#onEvent.fire({ type: "error", message: event.message });
         break;
+      case "stopped":
+        // The daemon's watcher died on its own (e.g. a watch limit); restarting
+        // it would likely fail the same way, so watch with a subprocess.
+        this.#output.appendLine(`[Daemon] Watcher stopped: ${event.message ?? ""}`);
+        if (this.#mode === "daemon" && this.#cwd) {
+          this.#fallBackToSubprocess(this.#cwd, "the daemon watcher stopped");
+        }
+        break;
       case "shutdown":
         this.#output.appendLine(`[Daemon] Shutting down at ${event.timestamp}`);
         // Fall back now instead of after the reconnect backoff (~31s).
@@ -336,7 +344,7 @@ export class WatchService implements vscode.Disposable {
         }
       } else {
         this.#output.appendLine(
-          "[Daemon] Leaving the shared daemon watch to the client that started it",
+          "[Daemon] Closing the connection releases this client's share of the daemon watch",
         );
       }
       client.dispose();
