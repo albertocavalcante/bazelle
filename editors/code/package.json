@@ -105,7 +105,7 @@
         "bazelle.autoUpdate": {
           "type": "boolean",
           "default": false,
-          "description": "Automatically update BUILD files on save"
+          "description": "Run an incremental update of the saved file's workspace folder on save (skipped while watch mode is running)"
         },
         "bazelle.statusBar.show": {
           "type": "string",
@@ -139,8 +139,8 @@
         },
         "bazelle.daemon.socketPath": {
           "type": "string",
-          "default": null,
-          "description": "Custom path to the daemon socket. Defaults to ~/.bazelle/daemon.sock"
+          "default": "",
+          "description": "Custom path to the daemon socket (also passed to `bazelle daemon start --socket`). Empty means ~/.bazelle/daemon.sock"
         },
         "bazelle.daemon.autoStart": {
           "type": "boolean",

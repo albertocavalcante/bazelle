@@ -4,96 +4,96 @@
 
 import * as vscode from "vscode";
 import { registerCommands } from "./commands";
+import { getConfiguration } from "./configuration";
 import { BazelleService } from "./services/bazelle";
-import { BinaryResolver } from "./services/binaryResolver";
+import { BinaryResolver, type ResolvedBinary } from "./services/binaryResolver";
+import { coalesce } from "./services/coalesce";
 import { WatchService } from "./services/watch";
 import { StatusBarManager } from "./ui/statusBar";
 
-let statusBar: StatusBarManager | undefined;
-let bazelle: BazelleService | undefined;
-let watch: WatchService | undefined;
-let output: vscode.OutputChannel | undefined;
-let resolver: BinaryResolver | undefined;
-
-export const getStatusBarManager = () => statusBar;
-export const getBazelleService = () => bazelle;
-export const getWatchService = () => watch;
-export const getOutputChannel = () => output;
-export const getBinaryResolver = () => resolver;
-
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  const version = (context.extension.packageJSON.version as string) ?? "dev";
+  const version = (context.extension.packageJSON.version as string | undefined) ?? "dev";
+  const subscriptions = context.subscriptions;
 
-  output = vscode.window.createOutputChannel("Bazelle");
-  context.subscriptions.push(output);
-
+  const output = vscode.window.createOutputChannel("Bazelle");
+  subscriptions.push(output);
   output.appendLine(`Bazelle extension v${version} activating...`);
 
-  // Initialize binary resolver
-  resolver = new BinaryResolver(context.extensionPath, context.globalStorageUri.fsPath, output);
+  const resolver = new BinaryResolver(
+    context.extensionPath,
+    context.globalStorageUri.fsPath,
+    output,
+  );
+  const statusBar = new StatusBarManager(version);
+  const bazelle = new BazelleService("bazelle", output);
+  const watch = new WatchService(bazelle, output);
+  subscriptions.push(statusBar, watch);
+  subscriptions.push(watch.onModeChanged((mode) => statusBar.setWatchMode(mode)));
 
-  // Resolve binary
-  let binary = await resolver.resolve();
-  if (!binary) {
-    output.appendLine("No binary found, prompting user...");
-    binary = await resolver.promptDownload();
-  }
-
-  if (!binary) {
-    output.appendLine("No binary available, extension running in limited mode");
-    statusBar = new StatusBarManager(version);
-    statusBar.setError();
-    context.subscriptions.push(statusBar);
-
-    // Register commands anyway (they'll show appropriate errors)
-    bazelle = new BazelleService("bazelle", output); // Placeholder
-    watch = new WatchService(bazelle, output);
-    registerCommands(context, bazelle, watch, output);
-    return;
-  }
-
-  output.appendLine(`Using binary: ${binary.path} (source: ${binary.source})`);
-
-  // Initialize services
-  bazelle = new BazelleService(binary.path, output);
-  watch = new WatchService(bazelle, output);
-
-  // Status bar
-  statusBar = new StatusBarManager(version);
-  context.subscriptions.push(statusBar);
-
-  // Commands
-  registerCommands(context, bazelle, watch, output);
-
-  // Config watcher - update binary path if setting changes
-  context.subscriptions.push(
-    vscode.workspace.onDidChangeConfiguration(async (e) => {
-      if (e.affectsConfiguration("bazelle.path")) {
-        const newBinary = await resolver?.resolve();
-        if (newBinary && bazelle) {
-          bazelle.setBinaryPath(newBinary.path);
-          output?.appendLine(`Binary path updated: ${newBinary.path}`);
-        }
+  let hasBinary = false;
+  const applyBinary = (binary: ResolvedBinary | undefined): ResolvedBinary | undefined => {
+    if (binary) {
+      bazelle.setBinaryPath(binary.path);
+      output.appendLine(`Using binary: ${binary.path} (source: ${binary.source})`);
+      statusBar.setError(undefined);
+      if (!hasBinary) {
+        hasBinary = true;
+        startConfiguredWatch();
       }
+    } else {
+      statusBar.setError(
+        "bazelle CLI not found. Set bazelle.path or run Bazelle: Download Binary.",
+      );
+    }
+    return binary;
+  };
+
+  const startConfiguredWatch = () => {
+    if (!getConfiguration().watchEnabled || watch.isRunning) return;
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) return;
+    watch.start(folder.uri.fsPath).catch((err) => {
+      output.appendLine(`Auto-watch failed: ${err}`);
+    });
+  };
+
+  // Register everything before resolving the binary so commands work (and
+  // report a missing CLI) even while the download prompt is still open.
+  registerCommands(context, {
+    bazelle,
+    watch,
+    output,
+    statusBar,
+    downloadBinary: async () => applyBinary(await resolver.download()),
+  });
+
+  subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(async (e) => {
+      if (e.affectsConfiguration("bazelle.path")) applyBinary(await resolver.resolve());
     }),
   );
 
-  // Auto-start watch if configured
-  const config = vscode.workspace.getConfiguration("bazelle");
-  if (config.get<boolean>("watch.enabled")) {
-    const folder = vscode.workspace.workspaceFolders?.[0];
-    if (folder) {
-      watch.start(folder.uri.fsPath).catch((err) => {
-        output?.appendLine(`Auto-watch failed: ${err}`);
-      });
-    }
+  const autoUpdate = coalesce(async (cwd: string) => {
+    const result = await statusBar.track(() => bazelle.update(cwd, { incremental: true }));
+    if (!result.success) output.appendLine(`Auto-update failed: ${result.error}`);
+  });
+  subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument((document) => {
+      if (!hasBinary || !getConfiguration().autoUpdate || watch.isRunning) return;
+      const folder = vscode.workspace.getWorkspaceFolder(document.uri);
+      if (folder && document.uri.scheme === "file") autoUpdate(folder.uri.fsPath);
+    }),
+  );
+
+  if (!applyBinary(await resolver.resolve())) {
+    output.appendLine("No binary found, prompting user...");
+    // Not awaited: an unanswered notification must not keep activation pending.
+    void resolver.promptDownload().then(applyBinary);
   }
 
-  statusBar.setReady();
   output.appendLine("Bazelle extension activated");
 }
 
-export async function deactivate(): Promise<void> {
-  output?.appendLine("Deactivating...");
-  watch?.dispose();
+export function deactivate(): void {
+  // Everything is disposed through context.subscriptions.
 }

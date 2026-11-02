@@ -106,7 +106,7 @@ When watch mode starts, the extension:
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `bazelle.path` | `"bazelle"` | Path to the bazelle executable |
-| `bazelle.autoUpdate` | `false` | Automatically update BUILD files on save |
+| `bazelle.autoUpdate` | `false` | Incrementally update the saved file's workspace folder on save (skipped while watching) |
 | `bazelle.statusBar.show` | `"onBazelWorkspace"` | When to show status bar: `always`, `onBazelWorkspace`, `never` |
 
 ### Watch Settings
@@ -121,7 +121,7 @@ When watch mode starts, the extension:
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `bazelle.daemon.enabled` | `true` | Use daemon when available (falls back to subprocess) |
-| `bazelle.daemon.socketPath` | `undefined` | Custom socket path (default: `~/.bazelle/daemon.sock`) |
+| `bazelle.daemon.socketPath` | `""` | Custom socket path, also used when starting the daemon (empty: `~/.bazelle/daemon.sock`) |
 | `bazelle.daemon.autoStart` | `false` | Automatically start daemon if not running |
 
 ### Example Configuration
