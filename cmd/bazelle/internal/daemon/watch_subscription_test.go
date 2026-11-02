@@ -269,6 +269,9 @@ func TestServer_DisconnectStopsWatch(t *testing.T) {
 		client, err = Connect(paths.Socket)
 		return err == nil
 	})
+	if client == nil {
+		t.Fatal("Connect succeeded without returning a client")
+	}
 	if _, err := client.WatchStart(&WatchStartParams{}); err != nil {
 		t.Fatalf("WatchStart: %v", err)
 	}
