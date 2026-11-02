@@ -188,8 +188,8 @@ func TestHandler_WatcherFailureNotifiesSubscribers(t *testing.T) {
 	if ev := peer.nextEvent(t); ev.Type != "stopped" {
 		t.Errorf("second event = %+v, want stopped", ev)
 	}
-	if h.GetWatchStatus().Watching {
-		t.Error("still watching after the watcher failed")
+	if st := h.GetWatchStatus(); st.Watching || len(st.Paths) != 0 {
+		t.Errorf("status after failure = %+v, want idle with no paths", st)
 	}
 
 	// The failed session must not keep the client subscribed.
@@ -311,5 +311,69 @@ func TestHandler_StaleWatcherDoesNotOrphanSuccessor(t *testing.T) {
 	}
 	if !current.closed.Load() {
 		t.Error("current watcher was orphaned: stop did not close it")
+	}
+}
+
+// A peer that stops reading must not block broadcasts forever.
+func TestClientConn_SendTimesOutOnStuckPeer(t *testing.T) {
+	t.Parallel()
+	srv, cli := net.Pipe() // nobody reads cli
+	t.Cleanup(func() { _ = cli.Close() })
+	cc := &ClientConn{
+		conn:    srv,
+		server:  &Server{writeTimeout: 50 * time.Millisecond},
+		encoder: json.NewEncoder(srv),
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- cc.Send(map[string]string{"x": "y"}) }()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("Send to a stuck peer succeeded")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Send blocked on a peer that never reads")
+	}
+	if err := cc.Send("again"); !errors.Is(err, net.ErrClosed) {
+		t.Errorf("connection not closed after a failed write: %v", err)
+	}
+}
+
+// The watch/start reply must reach the client before any event from the
+// session it started, even when the watcher fails at once.
+func TestServer_StartReplyPrecedesWatcherEvents(t *testing.T) {
+	t.Parallel()
+	for i := 0; i < 50; i++ {
+		server := newTestServer()
+		h := NewHandler(server)
+		h.newWatcher = func(cfg watch.Config) (fileWatcher, error) {
+			f := &fakeWatcher{cfg: cfg, release: make(chan error, 1)}
+			f.release <- errors.New("fails immediately")
+			return f, nil
+		}
+		server.handler = h
+
+		srv, cli := net.Pipe()
+		cc := &ClientConn{conn: srv, server: server, encoder: json.NewEncoder(srv), decoder: json.NewDecoder(srv)}
+		server.clients[cc] = struct{}{}
+		go server.handleClient(cc)
+
+		if err := json.NewEncoder(cli).Encode(Request{JSONRPC: JSONRPCVersion, ID: ptr(int64(7)), Method: MethodWatchStart}); err != nil {
+			t.Fatalf("send request: %v", err)
+		}
+		_ = cli.SetReadDeadline(time.Now().Add(2 * time.Second))
+		dec := json.NewDecoder(cli)
+		var first struct {
+			ID     *int64 `json:"id"`
+			Method string `json:"method"`
+		}
+		if err := dec.Decode(&first); err != nil {
+			t.Fatalf("read first message: %v", err)
+		}
+		if first.ID == nil || *first.ID != 7 {
+			t.Fatalf("iteration %d: first message is %q, want the watch/start reply", i, first.Method)
+		}
+		_ = cli.Close()
 	}
 }

@@ -26,6 +26,8 @@ type Server struct {
 	startTime time.Time
 	version   string
 
+	writeTimeout time.Duration // per-message write limit; 0 means defaultWriteTimeout
+
 	// Client management
 	clients   map[*ClientConn]struct{}
 	clientsMu sync.RWMutex
@@ -49,6 +51,10 @@ type ClientConn struct {
 	closed     bool
 	closeMu    sync.Mutex
 }
+
+// defaultWriteTimeout bounds each write so a client that stops reading
+// cannot stall broadcasts, the watcher, or shutdown.
+const defaultWriteTimeout = 5 * time.Second
 
 // ServerConfig configures the daemon server.
 type ServerConfig struct {
@@ -225,13 +231,19 @@ func (s *Server) handleClient(client *ClientConn) {
 			continue
 		}
 
-		// Handle the request
+		// Handle the request and write its reply while holding the encoder,
+		// so events triggered by the request (e.g. a watcher that fails at
+		// once) queue behind the reply instead of overtaking it.
+		client.encoderMu.Lock()
 		resp := s.handler.HandleRequest(client, &req)
+		var err error
 		if resp != nil {
-			if err := client.Send(resp); err != nil {
-				logger.Debugw("failed to send response", "error", err)
-				return
-			}
+			err = client.sendLocked(resp)
+		}
+		client.encoderMu.Unlock()
+		if err != nil {
+			logger.Debugw("failed to send response", "error", err)
+			return
 		}
 	}
 }
@@ -322,12 +334,17 @@ func (s *Server) notifyShutdown() {
 // Broadcast sends a notification to all subscribed clients.
 func (s *Server) Broadcast(notif *Notification) {
 	s.clientsMu.RLock()
-	defer s.clientsMu.RUnlock()
-
+	var targets []*ClientConn
 	for client := range s.clients {
 		if client.subscribed.Load() {
-			_ = client.Send(notif)
+			targets = append(targets, client)
 		}
+	}
+	s.clientsMu.RUnlock()
+
+	// Send outside clientsMu so a slow client cannot block accept/disconnect.
+	for _, client := range targets {
+		_ = client.Send(notif)
 	}
 }
 
@@ -370,7 +387,22 @@ func (c *ClientConn) Send(msg any) error {
 
 	c.encoderMu.Lock()
 	defer c.encoderMu.Unlock()
-	return c.encoder.Encode(msg)
+	return c.sendLocked(msg)
+}
+
+// sendLocked writes msg with a deadline; the caller holds encoderMu. A failed
+// write may leave a partial message on the stream, so it closes the client.
+func (c *ClientConn) sendLocked(msg any) error {
+	timeout := defaultWriteTimeout
+	if c.server != nil && c.server.writeTimeout > 0 {
+		timeout = c.server.writeTimeout
+	}
+	_ = c.conn.SetWriteDeadline(time.Now().Add(timeout))
+	if err := c.encoder.Encode(msg); err != nil {
+		c.Close()
+		return err
+	}
+	return nil
 }
 
 // Close closes the client connection.

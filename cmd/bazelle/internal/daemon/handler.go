@@ -77,6 +77,18 @@ func (h *Handler) HandleRequest(client *ClientConn, req *Request) *Response {
 	logger := log.Component("daemon")
 	logger.Debugw("handling request", "method", req.Method, "id", req.ID)
 
+	if req.ID == nil {
+		// JSON-RPC notification: process it, but never reply.
+		withID := *req
+		withID.ID = new(int64)
+		h.dispatch(client, &withID)
+		return nil
+	}
+	return h.dispatch(client, req)
+}
+
+// dispatch routes a request (with a non-nil ID) to its method handler.
+func (h *Handler) dispatch(client *ClientConn, req *Request) *Response {
 	switch req.Method {
 	case MethodPing:
 		return h.handlePing(req)
@@ -247,13 +259,15 @@ func (h *Handler) runWatcher(ctx context.Context, w fileWatcher, gen uint64) {
 	h.stopLocked()
 	h.watchMu.Unlock()
 
+	var events []WatchEventParams
 	if runErr != nil {
 		logger.Warnw("watcher stopped with error", "error", runErr)
-		h.notify(subs, "error", fmt.Sprintf("watcher stopped: %v", runErr))
+		events = append(events, WatchEventParams{Type: "error", Message: fmt.Sprintf("watcher stopped: %v", runErr)})
 	} else {
 		logger.Warnw("watcher stopped unexpectedly")
 	}
-	h.notify(subs, "stopped", "watcher stopped; call watch/start to resume")
+	events = append(events, WatchEventParams{Type: "stopped", Message: "watcher stopped; call watch/start to resume"})
+	h.notify(subs, events)
 }
 
 // handleWatchStop releases the caller's watch subscription. The shared
@@ -326,6 +340,8 @@ func (h *Handler) stopLocked() {
 	h.watching = false
 	h.watcher = nil
 	h.watchCancel = nil
+	h.watchPaths = nil
+	h.watchLangs = nil
 	h.subscribers = nil
 }
 
@@ -348,18 +364,25 @@ func (h *Handler) emit(gen uint64, eventType string, dirs, files []string, messa
 	}
 }
 
-// notify sends a watch event directly to subs (already unsubscribed).
-func (h *Handler) notify(subs map[*ClientConn]struct{}, eventType, message string) {
-	notif, err := NewNotification(MethodWatchEvent, WatchEventParams{
-		Type:      eventType,
-		Message:   message,
-		Timestamp: time.Now().Format(time.RFC3339),
-	})
-	if err != nil {
-		return
+// notify sends events directly to subs (already unsubscribed). Each client
+// gets all of them back to back, so a request it sends in reaction (handled
+// under the same encoder lock) cannot slip in between.
+func (h *Handler) notify(subs map[*ClientConn]struct{}, events []WatchEventParams) {
+	var notifs []*Notification
+	for _, ev := range events {
+		ev.Timestamp = time.Now().Format(time.RFC3339)
+		if n, err := NewNotification(MethodWatchEvent, ev); err == nil {
+			notifs = append(notifs, n)
+		}
 	}
 	for c := range subs {
-		_ = c.Send(notif)
+		c.encoderMu.Lock()
+		for _, n := range notifs {
+			if c.sendLocked(n) != nil {
+				break
+			}
+		}
+		c.encoderMu.Unlock()
 	}
 }
 
@@ -394,14 +417,7 @@ func (h *Handler) GetWatchStatus() *WatchStatusResult {
 
 // handleUpdateRun handles the update/run request.
 func (h *Handler) handleUpdateRun(req *Request) *Response {
-	var params UpdateRunParams
-	if req.Params != nil {
-		if err := json.Unmarshal(req.Params, &params); err != nil {
-			return NewErrorResponse(req.ID, ErrCodeInvalidParams, "Invalid params", err.Error())
-		}
-	}
-
-	// TODO: Implement manual update trigger
+	// TODO: Implement manual update trigger (parse UpdateRunParams then)
 	return notImplemented(req)
 }
 

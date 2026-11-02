@@ -130,35 +130,15 @@ func TestHandler_HandlePing(t *testing.T) {
 	}
 }
 
+// JSON-RPC 2.0 §4.1: a request without an id is a notification. It must
+// not crash the daemon and must not get a reply.
 func TestHandler_HandlePing_NilID(t *testing.T) {
 	t.Parallel()
-	server := &Server{
-		startTime: time.Now(),
-		version:   "1.0.0",
-	}
-	handler := NewHandler(server)
+	handler := NewHandler(&Server{startTime: time.Now(), version: "1.0.0"})
 
-	req := &Request{
-		JSONRPC: JSONRPCVersion,
-		ID:      nil, // Notification-style (no ID means no response expected per JSON-RPC 2.0)
-		Method:  MethodPing,
-	}
-
-	// BUG: The handler currently panics when dereferencing nil ID.
-	// Per JSON-RPC 2.0, requests without ID are notifications and should not receive a response.
-	// This test documents the current behavior - the handler should be fixed to check for nil ID.
-	defer func() {
-		if r := recover(); r != nil {
-			// This is the current buggy behavior - handler panics on nil ID
-			t.Logf("Known bug: Handler panics on nil ID: %v", r)
-		}
-	}()
-
-	mockClient := &ClientConn{}
-	resp := handler.HandleRequest(mockClient, req)
-	// If we get here, the handler was fixed to handle nil ID
-	if resp != nil {
-		t.Log("Handler now handles nil ID without panic")
+	req := &Request{JSONRPC: JSONRPCVersion, Method: MethodPing}
+	if resp := handler.HandleRequest(&ClientConn{}, req); resp != nil {
+		t.Errorf("notification got a reply: %+v", resp)
 	}
 }
 
@@ -375,11 +355,9 @@ func TestHandler_HandleUpdateRun_InvalidParams(t *testing.T) {
 	if resp == nil {
 		t.Fatal("Response should not be nil")
 	}
-	if resp.Error == nil {
-		t.Fatal("Expected error for invalid params")
-	}
-	if resp.Error.Code != ErrCodeInvalidParams {
-		t.Errorf("Error code = %d, want %d", resp.Error.Code, ErrCodeInvalidParams)
+	// Not implemented takes precedence over parameter validation.
+	if resp.Error == nil || resp.Error.Code != ErrCodeMethodNotFound {
+		t.Errorf("Error = %+v, want code %d", resp.Error, ErrCodeMethodNotFound)
 	}
 }
 

@@ -30,7 +30,8 @@ type Config struct {
 	JSON            bool
 	GazelleDefaults []string
 
-	// Optional hooks, called from the watcher goroutine.
+	// Optional hooks. They run on watcher and debouncer goroutines, may run
+	// concurrently, and may fire shortly after Run returns.
 	OnChange func(dirs []string)                      // debounced change, before Gazelle runs
 	OnUpdate func(dirs []string, buildFiles []string) // Gazelle updated these dirs
 	OnError  func(err error)                          // non-fatal error; watching continues
