@@ -65,8 +65,16 @@ export class BazelleService {
     return this.#run(["init"], cwd);
   }
 
-  watch(cwd: string): ChildProcess {
+  /** Run `daemon start`, which daemonizes and exits once the daemon is up. */
+  async startDaemon(cwd: string, socketPath?: string): Promise<CommandResult> {
+    const args = ["daemon", "start"];
+    if (socketPath) args.push("--socket", socketPath);
+    return this.#run(args, cwd);
+  }
+
+  watch(cwd: string, debounceMs?: number): ChildProcess {
     const args = ["watch", "--json"];
+    if (debounceMs !== undefined) args.push("--debounce", String(Math.round(debounceMs)));
     this.#output.appendLine(`$ ${this.#binaryPath} ${args.join(" ")}`);
 
     return spawn(this.#binaryPath, args, {

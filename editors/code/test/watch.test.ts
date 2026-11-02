@@ -20,23 +20,27 @@ class FakeDaemonClient {
   static failConnect = false;
   static watchPaths = ["/workspace"];
   static nextWatchStart: Promise<{ status: string; paths: string[] }> | null = null;
+  static connectGate: Promise<void> | null = null;
   readonly connectionState = new FakeEventEmitter<string>();
   readonly onConnectionStateChanged = this.connectionState.event;
   readonly onWatchEvent = new FakeEventEmitter<unknown>().event;
   readonly onError = new FakeEventEmitter<Error>().event;
   watchStarts = 0;
+  watchStartParams: unknown[] = [];
   disposed = false;
   constructor() {
     FakeDaemonClient.instances.push(this);
   }
   async connect(): Promise<void> {
+    if (FakeDaemonClient.connectGate) await FakeDaemonClient.connectGate;
     if (FakeDaemonClient.failConnect) throw new Error("connection refused");
   }
   async ping(): Promise<{ version: string; uptime: string }> {
     return { version: "test", uptime: "1s" };
   }
-  async watchStart(): Promise<{ status: string; paths: string[] }> {
+  async watchStart(params?: unknown): Promise<{ status: string; paths: string[] }> {
     this.watchStarts++;
+    this.watchStartParams.push(params);
     if (FakeDaemonClient.nextWatchStart) return FakeDaemonClient.nextWatchStart;
     return { status: "watching", paths: FakeDaemonClient.watchPaths };
   }
@@ -46,24 +50,77 @@ class FakeDaemonClient {
   }
 }
 
+const config = {
+  daemonEnabled: true,
+  daemonSocketPath: "/tmp/bazelle.sock" as string | undefined,
+  daemonAutoStart: false,
+  watchDebounceMs: 500,
+};
+
 mock.module("vscode", () => ({ EventEmitter: FakeEventEmitter }));
-mock.module("../src/services/daemon", () => ({
-  DaemonClient: FakeDaemonClient,
-  getDaemonConfig: () => ({ enabled: true, socketPath: "/tmp/bazelle.sock" }),
-}));
+mock.module("../src/services/daemon", () => ({ DaemonClient: FakeDaemonClient }));
+mock.module("../src/configuration", () => ({ getConfiguration: () => config }));
 
 const { WatchService } = await import("../src/services/watch");
 
-function makeWatchService(): InstanceType<typeof WatchService> {
-  const process = new NodeEventEmitter() as NodeEventEmitter & {
-    stdout: NodeEventEmitter;
-    stderr: NodeEventEmitter;
+type FakeProcess = NodeEventEmitter & {
+  stdout: NodeEventEmitter;
+  stderr: NodeEventEmitter;
+  killed: boolean;
+  kill: () => void;
+};
+
+function makeProcess(): FakeProcess {
+  const child = new NodeEventEmitter() as FakeProcess;
+  child.stdout = new NodeEventEmitter();
+  child.stderr = new NodeEventEmitter();
+  child.killed = false;
+  child.kill = () => {
+    child.killed = true;
   };
-  process.stdout = new NodeEventEmitter();
-  process.stderr = new NodeEventEmitter();
-  const bazelle = { watch: () => process };
+  return child;
+}
+
+interface FakeBazelle {
+  processes: FakeProcess[];
+  watchCalls: Array<{ cwd: string; debounceMs?: number }>;
+  daemonStarts: Array<string | undefined>;
+  watch: (cwd: string, debounceMs?: number) => FakeProcess;
+  startDaemon: (cwd: string, socketPath?: string) => Promise<{ success: boolean }>;
+}
+
+let bazelle: FakeBazelle;
+
+function makeWatchService(): InstanceType<typeof WatchService> {
+  bazelle = {
+    processes: [],
+    watchCalls: [],
+    daemonStarts: [],
+    watch(cwd, debounceMs) {
+      this.watchCalls.push({ cwd, debounceMs });
+      const child = makeProcess();
+      this.processes.push(child);
+      return child;
+    },
+    async startDaemon(_cwd, socketPath) {
+      this.daemonStarts.push(socketPath);
+      FakeDaemonClient.failConnect = false;
+      return { success: true };
+    },
+  };
   const output = { append: () => {}, appendLine: () => {} };
   return new WatchService(bazelle as never, output as never);
+}
+
+function reset(): void {
+  FakeDaemonClient.instances = [];
+  FakeDaemonClient.failConnect = false;
+  FakeDaemonClient.watchPaths = ["/workspace"];
+  FakeDaemonClient.nextWatchStart = null;
+  FakeDaemonClient.connectGate = null;
+  config.daemonEnabled = true;
+  config.daemonAutoStart = false;
+  config.watchDebounceMs = 500;
 }
 
 test("cleans up a failed daemon client before subprocess fallback", async () => {
@@ -142,4 +199,96 @@ test("does not restart watching after a reconnect fails following stop", async (
 
   expect(watch.mode).toBe("none");
   FakeDaemonClient.nextWatchStart = null;
+});
+
+test("a stale subprocess exit does not clobber a restarted watcher", async () => {
+  reset();
+  config.daemonEnabled = false;
+  const watch = makeWatchService();
+  await watch.start("/workspace");
+  const first = bazelle.processes[0];
+  await watch.stop();
+  await watch.start("/workspace");
+
+  first?.emit("close", null);
+
+  expect(watch.mode).toBe("subprocess");
+  expect(first?.killed).toBe(true);
+});
+
+test("rejects a second start while the first is still connecting", async () => {
+  reset();
+  let release: () => void = () => {};
+  FakeDaemonClient.connectGate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const watch = makeWatchService();
+  const first = watch.start("/workspace");
+
+  await expect(watch.start("/workspace")).rejects.toThrow("already");
+  release();
+  await first;
+
+  expect(FakeDaemonClient.instances).toHaveLength(1);
+  expect(watch.mode).toBe("daemon");
+});
+
+test("stop during an in-flight daemon start leaves watch stopped", async () => {
+  reset();
+  let release: () => void = () => {};
+  FakeDaemonClient.connectGate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const watch = makeWatchService();
+  const starting = watch.start("/workspace");
+  await watch.stop();
+  release();
+  await starting;
+
+  expect(watch.mode).toBe("none");
+  expect(FakeDaemonClient.instances[0]?.disposed).toBe(true);
+  expect(bazelle.processes).toHaveLength(0);
+});
+
+test("passes the configured debounce to the daemon and the subprocess", async () => {
+  reset();
+  config.watchDebounceMs = 750;
+  const daemonWatch = makeWatchService();
+  await daemonWatch.start("/workspace");
+  expect(FakeDaemonClient.instances[0]?.watchStartParams[0]).toEqual({
+    paths: ["/workspace"],
+    debounce: 750,
+  });
+
+  config.daemonEnabled = false;
+  const subprocessWatch = makeWatchService();
+  await subprocessWatch.start("/workspace");
+  expect(bazelle.watchCalls).toEqual([{ cwd: "/workspace", debounceMs: 750 }]);
+});
+
+test("auto-starts the daemon when configured and it is not running", async () => {
+  reset();
+  config.daemonAutoStart = true;
+  FakeDaemonClient.failConnect = true;
+  const watch = makeWatchService();
+
+  await watch.start("/workspace");
+
+  expect(bazelle.daemonStarts).toEqual(["/tmp/bazelle.sock"]);
+  expect(watch.mode).toBe("daemon");
+});
+
+test("emits CLI watch events split across stdout chunks", async () => {
+  reset();
+  config.daemonEnabled = false;
+  const watch = makeWatchService();
+  const events: unknown[] = [];
+  watch.onEvent((event) => events.push(event));
+  await watch.start("/workspace");
+  const child = bazelle.processes[0];
+
+  child?.stdout.emit("data", Buffer.from('{"event":"upd'));
+  child?.stdout.emit("data", Buffer.from('ated","build_file":"pkg/BUILD.bazel"}\n'));
+
+  expect(events).toContainEqual({ type: "updated", path: "pkg/BUILD.bazel" });
 });

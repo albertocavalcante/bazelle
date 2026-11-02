@@ -28,7 +28,7 @@ export function getConfiguration(): BazelleConfig {
     watchEnabled: config.get<boolean>("watch.enabled", false),
     watchDebounceMs: config.get<number>("watch.debounceMs", 500),
     daemonEnabled: config.get<boolean>("daemon.enabled", true),
-    daemonSocketPath: config.get<string>("daemon.socketPath"),
+    daemonSocketPath: config.get<string>("daemon.socketPath") || undefined,
     daemonAutoStart: config.get<boolean>("daemon.autoStart", false),
   };
 }

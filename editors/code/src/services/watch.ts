@@ -5,24 +5,18 @@
  */
 
 import type { ChildProcess } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 import * as vscode from "vscode";
+import { getConfiguration } from "../configuration";
 import type { BazelleService } from "./bazelle";
-import {
-  DaemonClient,
-  type DaemonConnectionState,
-  getDaemonConfig,
-  type WatchEventParams,
-} from "./daemon";
+import { LineBuffer, parseWatchEvent, type WatchEvent } from "./cliOutput";
+import { DaemonClient, type DaemonConnectionState, type WatchEventParams } from "./daemon";
 
-export interface WatchEvent {
-  type: "started" | "updated" | "error" | "file_change";
-  path?: string;
-  message?: string;
-  directories?: string[];
-  files?: string[];
-}
-
+export type { WatchEvent } from "./cliOutput";
 export type WatchMode = "daemon" | "subprocess" | "none";
+
+/** Thrown inside a start attempt that a later stop()/start() superseded. */
+class Superseded extends Error {}
 
 export class WatchService implements vscode.Disposable {
   readonly #bazelle: BazelleService;
@@ -32,9 +26,13 @@ export class WatchService implements vscode.Disposable {
 
   #process: ChildProcess | null = null;
   #daemonClient: DaemonClient | null = null;
+  #daemonSubscriptions: vscode.Disposable[] = [];
   #mode: WatchMode = "none";
   #cwd: string | null = null;
-  #disposables: vscode.Disposable[] = [];
+  #starting = false;
+  // Bumped by every start() and stop(); async work from an older generation
+  // must not touch current state.
+  #generation = 0;
 
   readonly onEvent = this.#onEvent.event;
   readonly onModeChanged = this.#onModeChanged.event;
@@ -45,92 +43,102 @@ export class WatchService implements vscode.Disposable {
   }
 
   get isRunning(): boolean {
-    return this.#mode !== "none";
+    return this.#mode !== "none" || this.#starting;
   }
 
   get mode(): WatchMode {
     return this.#mode;
   }
 
-  get daemonClient(): DaemonClient | null {
-    return this.#daemonClient;
-  }
-
   /**
    * Start watch mode - tries daemon first, falls back to subprocess
    */
   async start(cwd: string): Promise<void> {
-    if (this.#mode !== "none") {
+    if (this.isRunning) {
       throw new Error("Watch mode already running");
     }
 
+    const generation = ++this.#generation;
+    this.#starting = true;
     this.#cwd = cwd;
-    const config = getDaemonConfig();
+    const config = getConfiguration();
 
-    // Try daemon first if enabled
-    if (config.enabled) {
-      this.#output.appendLine("Attempting to connect to daemon...");
-      try {
-        await this.#startDaemon(cwd, config.socketPath);
-        return;
-      } catch (err) {
-        this.#output.appendLine(`Daemon connection failed: ${err}`);
-        this.#cleanupDaemon();
-        this.#output.appendLine("Falling back to subprocess mode...");
+    try {
+      if (config.daemonEnabled) {
+        this.#output.appendLine("Attempting to connect to daemon...");
+        try {
+          await this.#startDaemon(cwd, generation);
+          return;
+        } catch (err) {
+          if (err instanceof Superseded) return;
+          this.#output.appendLine(`Daemon connection failed: ${err}`);
+          if (generation !== this.#generation) return;
+          this.#output.appendLine("Falling back to subprocess mode...");
+        }
       }
+      this.#startSubprocess(cwd);
+    } finally {
+      if (generation === this.#generation) this.#starting = false;
     }
-
-    // Fallback to subprocess
-    await this.#startSubprocess(cwd);
   }
 
   /**
    * Start watch via daemon connection
    */
-  async #startDaemon(cwd: string, socketPath?: string): Promise<void> {
-    this.#daemonClient = new DaemonClient(this.#output, {
-      socketPath,
-    });
-
-    // Subscribe to daemon events
-    this.#disposables.push(
-      this.#daemonClient.onWatchEvent((event) => {
-        this.#handleDaemonEvent(event);
+  async #startDaemon(cwd: string, generation: number): Promise<void> {
+    const { daemonSocketPath, daemonAutoStart, watchDebounceMs } = getConfiguration();
+    const client = new DaemonClient(this.#output, { socketPath: daemonSocketPath });
+    const subscriptions = [
+      client.onWatchEvent((event) => {
+        if (this.#daemonClient === client) this.#handleDaemonEvent(event);
       }),
-    );
-
-    this.#disposables.push(
-      this.#daemonClient.onConnectionStateChanged((state) => {
-        this.#handleConnectionStateChange(state);
+      client.onConnectionStateChanged((state) => {
+        if (this.#daemonClient === client) this.#handleConnectionStateChange(state);
       }),
-    );
-
-    this.#disposables.push(
-      this.#daemonClient.onError((err) => {
+      client.onError((err) => {
+        if (this.#daemonClient !== client) return;
         this.#output.appendLine(`[Daemon] Error: ${err.message}`);
         this.#onEvent.fire({ type: "error", message: err.message });
       }),
-    );
+    ];
+    const checkCurrent = () => {
+      if (generation !== this.#generation) throw new Superseded("watch start superseded");
+    };
 
-    // Connect to daemon
-    await this.#daemonClient.connect();
+    try {
+      try {
+        await client.connect();
+      } catch (err) {
+        if (!daemonAutoStart) throw err;
+        checkCurrent();
+        this.#output.appendLine("[Daemon] Not running, starting it (bazelle.daemon.autoStart)");
+        const started = await this.#bazelle.startDaemon(cwd, daemonSocketPath);
+        if (!started.success) throw new Error(`daemon start failed: ${started.error}`);
+        checkCurrent();
+        await client.connect();
+      }
+      checkCurrent();
 
-    // Verify connection with ping
-    const pingResult = await this.#daemonClient.ping();
-    this.#output.appendLine(
-      `[Daemon] Connected to bazelle daemon v${pingResult.version} (uptime: ${pingResult.uptime})`,
-    );
+      const pingResult = await client.ping();
+      checkCurrent();
+      this.#output.appendLine(
+        `[Daemon] Connected to bazelle daemon v${pingResult.version} (uptime: ${pingResult.uptime})`,
+      );
 
-    // Start watching
-    const result = await this.#daemonClient.watchStart({
-      paths: [cwd],
-    });
+      const result = await client.watchStart({ paths: [cwd], debounce: watchDebounceMs });
+      checkCurrent();
+      requireWatchingPath(result.paths, cwd);
 
-    this.#requireWatchingPath(result.paths, cwd);
+      this.#output.appendLine(`[Daemon] Watch started: ${result.status}`);
+      this.#output.appendLine(`[Daemon] Watching paths: ${result.paths.join(", ")}`);
+    } catch (err) {
+      for (const d of subscriptions) d.dispose();
+      client.dispose();
+      throw err;
+    }
 
-    this.#output.appendLine(`[Daemon] Watch started: ${result.status}`);
-    this.#output.appendLine(`[Daemon] Watching paths: ${result.paths.join(", ")}`);
-
+    this.#daemonClient = client;
+    this.#daemonSubscriptions = subscriptions;
     this.#setMode("daemon");
     this.#onEvent.fire({ type: "started" });
   }
@@ -154,125 +162,88 @@ export class WatchService implements vscode.Disposable {
         });
         break;
       case "error":
-        this.#onEvent.fire({
-          type: "error",
-          message: event.message,
-        });
+        this.#onEvent.fire({ type: "error", message: event.message });
         break;
     }
   }
 
   #handleConnectionStateChange(state: DaemonConnectionState): void {
+    const client = this.#daemonClient;
+    const cwd = this.#cwd;
+    if (this.#mode !== "daemon" || !client || !cwd) return;
+
     switch (state) {
       case "disconnected":
-        if (this.#mode === "daemon") {
-          this.#output.appendLine("[Daemon] Lost connection");
-          // Try to fall back to subprocess if we have a cwd
-          if (this.#cwd) {
-            this.#output.appendLine("Attempting fallback to subprocess mode...");
-            this.#cleanupDaemon();
-            this.#startSubprocess(this.#cwd).catch((err) => {
-              this.#output.appendLine(`Subprocess fallback failed: ${err}`);
-              this.#setMode("none");
-            });
-          } else {
-            this.#setMode("none");
-          }
-        }
+        this.#output.appendLine("[Daemon] Lost connection");
+        this.#fallBackToSubprocess(cwd);
         break;
       case "reconnecting":
         this.#output.appendLine("[Daemon] Attempting to reconnect...");
         break;
       case "connected":
-        if (this.#mode === "daemon") {
-          this.#output.appendLine("[Daemon] Reconnected");
-          if (this.#cwd && this.#daemonClient) {
-            const cwd = this.#cwd;
-            const client = this.#daemonClient;
-            void client
-              .watchStart({ paths: [cwd] })
-              .then((result) => {
-                if (this.#daemonClient !== client || this.#mode !== "daemon") return;
-                this.#requireWatchingPath(result.paths, cwd);
-                this.#output.appendLine("[Daemon] Watch registration restored");
-              })
-              .catch((err) => {
-                if (this.#daemonClient !== client || this.#mode !== "daemon") return;
-                this.#output.appendLine(`[Daemon] Watch registration failed: ${err}`);
-                this.#cleanupDaemon();
-                this.#startSubprocess(cwd).catch((fallbackError) => {
-                  this.#output.appendLine(`Subprocess fallback failed: ${fallbackError}`);
-                  this.#setMode("none");
-                });
-              });
-          }
-        }
+        this.#output.appendLine("[Daemon] Reconnected");
+        void client
+          .watchStart({ paths: [cwd], debounce: getConfiguration().watchDebounceMs })
+          .then((result) => {
+            if (this.#daemonClient !== client) return;
+            requireWatchingPath(result.paths, cwd);
+            this.#output.appendLine("[Daemon] Watch registration restored");
+          })
+          .catch((err) => {
+            if (this.#daemonClient !== client) return;
+            this.#output.appendLine(`[Daemon] Watch registration failed: ${err}`);
+            this.#fallBackToSubprocess(cwd);
+          });
         break;
     }
   }
 
-  #requireWatchingPath(paths: string[], cwd: string): void {
-    if (!paths.includes(cwd)) {
-      throw new Error(`Daemon is watching ${paths.join(", ")} instead of ${cwd}`);
-    }
+  #fallBackToSubprocess(cwd: string): void {
+    this.#output.appendLine("Attempting fallback to subprocess mode...");
+    this.#disposeDaemon();
+    this.#startSubprocess(cwd);
   }
 
   /**
-   * Start watch via subprocess (existing behavior)
+   * Start watch via subprocess
    */
-  async #startSubprocess(cwd: string): Promise<void> {
+  #startSubprocess(cwd: string): void {
     this.#output.appendLine("Starting watch mode (subprocess)...");
-    this.#process = this.#bazelle.watch(cwd);
+    const child = this.#bazelle.watch(cwd, getConfiguration().watchDebounceMs);
+    this.#process = child;
 
-    this.#process.stdout?.on("data", (data: Buffer) => {
-      const text = data.toString();
-      this.#output.append(text);
-
-      for (const line of text.split("\n")) {
-        if (!line.trim()) continue;
-        try {
-          const parsed = JSON.parse(line);
-          this.#onEvent.fire(this.#normalizeSubprocessEvent(parsed));
-        } catch {
-          // Not JSON
-        }
+    const decoder = new StringDecoder("utf8");
+    const lines = new LineBuffer((line) => {
+      try {
+        const event = parseWatchEvent(JSON.parse(line));
+        if (event && this.#process === child) this.#onEvent.fire(event);
+      } catch {
+        // Not JSON
       }
     });
 
-    this.#process.stderr?.on("data", (data: Buffer) => {
-      const text = data.toString();
+    child.stdout?.on("data", (data: Buffer) => {
+      const text = decoder.write(data);
       this.#output.append(text);
-      this.#onEvent.fire({ type: "error", message: text });
+      lines.push(text);
     });
 
-    this.#process.on("error", (err) => {
-      this.#output.appendLine(`Watch error: ${err.message}`);
-      this.#onEvent.fire({ type: "error", message: err.message });
-      this.#process = null;
-      this.#setMode("none");
+    child.stderr?.on("data", (data: Buffer) => {
+      this.#output.append(data.toString());
     });
 
-    this.#process.on("close", (code) => {
-      this.#output.appendLine(`Watch exited (code ${code})`);
+    const exited = (reason: string) => {
+      this.#output.appendLine(reason);
+      if (this.#process !== child) return;
       this.#process = null;
+      this.#onEvent.fire({ type: "error", message: reason });
       this.#setMode("none");
-    });
+    };
+    child.on("error", (err) => exited(`Watch error: ${err.message}`));
+    child.on("close", (code) => exited(`Watch exited (code ${code})`));
 
     this.#setMode("subprocess");
     this.#onEvent.fire({ type: "started" });
-  }
-
-  /**
-   * Normalize subprocess event to match our WatchEvent interface
-   */
-  #normalizeSubprocessEvent(event: Record<string, unknown>): WatchEvent {
-    return {
-      type: event.type as WatchEvent["type"],
-      path: event.path as string | undefined,
-      message: event.message as string | undefined,
-      directories: event.directories as string[] | undefined,
-      files: event.files as string[] | undefined,
-    };
   }
 
   #setMode(mode: WatchMode): void {
@@ -286,60 +257,50 @@ export class WatchService implements vscode.Disposable {
    * Stop watch mode
    */
   async stop(): Promise<void> {
-    if (this.#mode === "daemon" && this.#daemonClient) {
+    this.#generation++;
+    this.#starting = false;
+    this.#cwd = null;
+
+    const child = this.#process;
+    this.#process = null;
+    const client = this.#daemonClient;
+    const subscriptions = this.#daemonSubscriptions;
+    this.#daemonClient = null;
+    this.#daemonSubscriptions = [];
+    this.#setMode("none");
+
+    if (child) {
+      this.#output.appendLine("Stopping watch mode (subprocess)...");
+      child.kill();
+    }
+    if (client) {
+      for (const d of subscriptions) d.dispose();
       try {
-        await this.#daemonClient.watchStop();
+        await client.watchStop();
         this.#output.appendLine("[Daemon] Watch stopped");
       } catch (err) {
         this.#output.appendLine(`[Daemon] Error stopping watch: ${err}`);
       }
-      this.#cleanupDaemon();
-    } else if (this.#mode === "subprocess" && this.#process) {
-      this.#output.appendLine("Stopping watch mode (subprocess)...");
-      this.#process.kill();
-      this.#process = null;
-    }
-
-    this.#cwd = null;
-    this.#setMode("none");
-  }
-
-  #cleanupDaemon(): void {
-    for (const d of this.#disposables) {
-      d.dispose();
-    }
-    this.#disposables = [];
-
-    if (this.#daemonClient) {
-      this.#daemonClient.dispose();
-      this.#daemonClient = null;
-    }
-  }
-
-  /**
-   * Get the daemon client (for direct access)
-   */
-  getDaemonClient(): DaemonClient | null {
-    return this.#daemonClient;
-  }
-
-  /**
-   * Check if daemon is available
-   */
-  async isDaemonAvailable(): Promise<boolean> {
-    const client = new DaemonClient(this.#output);
-    try {
-      return await client.isAvailable();
-    } finally {
       client.dispose();
     }
   }
 
+  #disposeDaemon(): void {
+    for (const d of this.#daemonSubscriptions) d.dispose();
+    this.#daemonSubscriptions = [];
+    this.#daemonClient?.dispose();
+    this.#daemonClient = null;
+  }
+
   dispose(): void {
-    this.stop().catch(() => {
-      // Ignore errors during disposal
-    });
+    void this.stop();
     this.#onEvent.dispose();
     this.#onModeChanged.dispose();
+  }
+}
+
+function requireWatchingPath(paths: string[], cwd: string): void {
+  if (!paths.includes(cwd)) {
+    throw new Error(`Daemon is watching ${paths.join(", ")} instead of ${cwd}`);
   }
 }
