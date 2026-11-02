@@ -11,9 +11,11 @@
 import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import * as vscode from "vscode";
 import { extractArchive, verifyArchiveChecksum } from "./binaryArchive";
+import { expandHome } from "./process";
 
 const GITHUB_REPO = "albertocavalcante/bazelle";
 
@@ -196,7 +198,7 @@ export class BinaryResolver {
 
     if (!configured || configured === "bazelle") return undefined;
 
-    const expanded = configured.replace(/^~/, process.env.HOME ?? "");
+    const expanded = expandHome(configured, homedir());
     if (!existsSync(expanded)) {
       this.#log(`Configured path not found: ${expanded}`);
       return undefined;

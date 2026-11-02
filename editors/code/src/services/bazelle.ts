@@ -5,6 +5,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import type * as vscode from "vscode";
 import { parseStatusOutput, type StatusSummary } from "./cliOutput";
+import { commandFor } from "./process";
 
 export interface CommandResult {
   success: boolean;
@@ -38,17 +39,17 @@ export class BazelleService {
     return this.#binaryPath;
   }
 
-  async update(cwd: string, opts?: UpdateOptions): Promise<CommandResult> {
+  update(cwd: string, opts?: UpdateOptions, signal?: AbortSignal): Promise<CommandResult> {
     const args = ["update"];
     if (opts?.incremental) args.push("--incremental");
-    return this.#run(args, cwd);
+    return this.#run(args, cwd, signal);
   }
 
-  async fix(cwd: string, opts?: FixOptions): Promise<CommandResult> {
+  fix(cwd: string, opts?: FixOptions, signal?: AbortSignal): Promise<CommandResult> {
     const args = ["fix"];
     if (opts?.dryRun) args.push("--dry-run");
     if (opts?.check) args.push("--check");
-    return this.#run(args, cwd);
+    return this.#run(args, cwd, signal);
   }
 
   async status(cwd: string): Promise<CommandResult & { summary?: StatusSummary }> {
@@ -61,12 +62,12 @@ export class BazelleService {
     }
   }
 
-  async init(cwd: string): Promise<CommandResult> {
-    return this.#run(["init"], cwd);
+  init(cwd: string, signal?: AbortSignal): Promise<CommandResult> {
+    return this.#run(["init"], cwd, signal);
   }
 
   /** Run `daemon start`, which daemonizes and exits once the daemon is up. */
-  async startDaemon(cwd: string, socketPath?: string): Promise<CommandResult> {
+  startDaemon(cwd: string, socketPath?: string): Promise<CommandResult> {
     const args = ["daemon", "start"];
     if (socketPath) args.push("--socket", socketPath);
     return this.#run(args, cwd);
@@ -75,50 +76,41 @@ export class BazelleService {
   watch(cwd: string, debounceMs?: number): ChildProcess {
     const args = ["watch", "--json"];
     if (debounceMs !== undefined) args.push("--debounce", String(Math.round(debounceMs)));
-    this.#output.appendLine(`$ ${this.#binaryPath} ${args.join(" ")}`);
-
-    return spawn(this.#binaryPath, args, {
-      cwd,
-      stdio: ["ignore", "pipe", "pipe"],
-      shell: process.platform === "win32",
-    });
+    return this.#spawn(args, cwd);
   }
 
-  #run(args: string[], cwd: string): Promise<CommandResult> {
+  #spawn(args: string[], cwd: string, signal?: AbortSignal): ChildProcess {
+    this.#output.appendLine(`$ ${this.#binaryPath} ${args.join(" ")}  (in ${cwd})`);
+    const { command, shell } = commandFor(this.#binaryPath);
+    return spawn(command, args, { cwd, shell, signal, stdio: ["ignore", "pipe", "pipe"] });
+  }
+
+  #run(args: string[], cwd: string, signal?: AbortSignal): Promise<CommandResult> {
     return new Promise((resolve) => {
-      this.#output.appendLine(`$ ${this.#binaryPath} ${args.join(" ")}`);
-
-      const child = spawn(this.#binaryPath, args, {
-        cwd,
-        stdio: ["ignore", "pipe", "pipe"],
-        shell: process.platform === "win32",
-      });
-
+      const child = this.#spawn(args, cwd, signal);
       let stdout = "";
       let stderr = "";
 
-      child.stdout?.on("data", (data: Buffer) => {
-        const text = data.toString();
+      child.stdout?.setEncoding("utf8").on("data", (text: string) => {
         stdout += text;
         this.#output.append(text);
       });
-
-      child.stderr?.on("data", (data: Buffer) => {
-        const text = data.toString();
+      child.stderr?.setEncoding("utf8").on("data", (text: string) => {
         stderr += text;
         this.#output.append(text);
       });
 
       child.on("error", (err) => {
-        this.#output.appendLine(`Error: ${err.message}`);
-        resolve({ success: false, error: err.message });
+        const error = signal?.aborted ? "Cancelled" : err.message;
+        this.#output.appendLine(`Error: ${error}`);
+        resolve({ success: false, output: stdout, error });
       });
 
       child.on("close", (code) => {
         resolve(
           code === 0
             ? { success: true, output: stdout }
-            : { success: false, output: stdout, error: stderr || `Exit code ${code}` },
+            : { success: false, output: stdout, error: stderr.trim() || `Exit code ${code}` },
         );
       });
     });
