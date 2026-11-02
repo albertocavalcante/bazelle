@@ -5,7 +5,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import type * as vscode from "vscode";
 import { parseStatusOutput, type StatusSummary } from "./cliOutput";
-import { commandFor } from "./process";
+import { commandFor, treeKillCommand } from "./process";
 
 export interface CommandResult {
   success: boolean;
@@ -79,15 +79,36 @@ export class BazelleService {
     return this.#spawn(args, cwd);
   }
 
-  #spawn(args: string[], cwd: string, signal?: AbortSignal): ChildProcess {
+  /** Kill a spawned CLI process and, on Windows, everything it started. */
+  kill(child: ChildProcess): void {
+    const tree = child.pid === undefined ? undefined : treeKillCommand(child.pid);
+    if (!tree) {
+      child.kill();
+      return;
+    }
+    const killer = spawn(tree.command, tree.args, { stdio: "ignore", windowsHide: true });
+    killer.on("error", (err) => {
+      this.#output.appendLine(`${tree.command} failed: ${err.message}`);
+      child.kill();
+    });
+  }
+
+  #spawn(args: string[], cwd: string): ChildProcess {
     this.#output.appendLine(`$ ${this.#binaryPath} ${args.join(" ")}  (in ${cwd})`);
     const { command, shell } = commandFor(this.#binaryPath);
-    return spawn(command, args, { cwd, shell, signal, stdio: ["ignore", "pipe", "pipe"] });
+    return spawn(command, args, { cwd, shell, stdio: ["ignore", "pipe", "pipe"] });
   }
 
   #run(args: string[], cwd: string, signal?: AbortSignal): Promise<CommandResult> {
     return new Promise((resolve) => {
-      const child = this.#spawn(args, cwd, signal);
+      if (signal?.aborted) {
+        resolve({ success: false, error: "Cancelled" });
+        return;
+      }
+      const child = this.#spawn(args, cwd);
+      // Not spawn({ signal }): that kills only cmd.exe for a Windows .cmd shim.
+      const onAbort = () => this.kill(child);
+      signal?.addEventListener("abort", onAbort, { once: true });
       let stdout = "";
       let stderr = "";
 
@@ -101,12 +122,18 @@ export class BazelleService {
       });
 
       child.on("error", (err) => {
+        signal?.removeEventListener("abort", onAbort);
         const error = signal?.aborted ? "Cancelled" : err.message;
         this.#output.appendLine(`Error: ${error}`);
         resolve({ success: false, output: stdout, error });
       });
 
       child.on("close", (code) => {
+        signal?.removeEventListener("abort", onAbort);
+        if (signal?.aborted) {
+          resolve({ success: false, output: stdout, error: "Cancelled" });
+          return;
+        }
         resolve(
           code === 0
             ? { success: true, output: stdout }

@@ -303,7 +303,7 @@ export class WatchService implements vscode.Disposable {
 
     if (child) {
       this.#output.appendLine("Stopping watch mode (subprocess)...");
-      child.kill();
+      this.#bazelle.kill(child);
     }
     if (client) {
       for (const d of subscriptions) d.dispose();

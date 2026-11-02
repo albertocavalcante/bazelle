@@ -88,7 +88,9 @@ interface FakeBazelle {
   processes: FakeProcess[];
   watchCalls: Array<{ cwd: string; debounceMs?: number }>;
   daemonStarts: Array<string | undefined>;
+  killed: FakeProcess[];
   watch: (cwd: string, debounceMs?: number) => FakeProcess;
+  kill: (child: FakeProcess) => void;
   startDaemon: (cwd: string, socketPath?: string) => Promise<{ success: boolean }>;
 }
 
@@ -99,6 +101,11 @@ function makeWatchService(): InstanceType<typeof WatchService> {
     processes: [],
     watchCalls: [],
     daemonStarts: [],
+    killed: [],
+    kill(child) {
+      this.killed.push(child);
+      child.kill();
+    },
     watch(cwd, debounceMs) {
       this.watchCalls.push({ cwd, debounceMs });
       const child = makeProcess();
@@ -341,4 +348,16 @@ test("falls back to a subprocess as soon as the daemon announces shutdown", asyn
 
   expect(watch.mode).toBe("subprocess");
   expect(FakeDaemonClient.instances[0]?.disposed).toBe(true);
+});
+
+test("stop kills the subprocess through the CLI service so Windows shims die too", async () => {
+  reset();
+  config.daemonEnabled = false;
+  const watch = makeWatchService();
+  await watch.start("/workspace");
+  const child = bazelle.processes[0];
+
+  await watch.stop();
+
+  expect(bazelle.killed).toEqual([child as FakeProcess]);
 });

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { commandFor, expandHome } from "../src/services/process";
+import { commandFor, expandHome, treeKillCommand } from "../src/services/process";
 
 test("runs executables directly without a shell", () => {
   expect(commandFor("C:\\Program Files\\bazelle\\bazelle.exe", "win32")).toEqual({
@@ -27,4 +27,13 @@ test("expands only a leading ~ path segment", () => {
   );
   expect(expandHome("~other/bazelle", "/home/me")).toBe("~other/bazelle");
   expect(expandHome("/usr/bin/bazelle", "/home/me")).toBe("/usr/bin/bazelle");
+});
+
+test("kills the whole process tree on Windows, where a .cmd shim wraps the watcher", () => {
+  expect(treeKillCommand(4242, "win32")).toEqual({
+    command: "taskkill",
+    args: ["/pid", "4242", "/T", "/F"],
+  });
+  expect(treeKillCommand(4242, "linux")).toBeUndefined();
+  expect(treeKillCommand(4242, "darwin")).toBeUndefined();
 });
