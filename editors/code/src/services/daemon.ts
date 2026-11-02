@@ -70,7 +70,7 @@ export interface WatchStatusResult {
 }
 
 export interface WatchEventParams {
-  type: "change" | "update" | "error";
+  type: "change" | "update" | "error" | "shutdown";
   directories?: string[];
   files?: string[];
   message?: string;
@@ -214,7 +214,11 @@ export class DaemonClient implements vscode.Disposable {
       });
 
       socket.on("close", () => {
-        if (socket !== this.#socket) return;
+        if (socket !== this.#socket) {
+          // Detached by disconnect() or a newer attempt: settle, don't reconnect.
+          if (!established) reject(new Error("Connection attempt abandoned"));
+          return;
+        }
         this.#socket = null;
         if (!established) {
           reject(new Error("Socket closed before connecting"));
@@ -297,7 +301,8 @@ export class DaemonClient implements vscode.Disposable {
       this.#reconnectTimer = null;
       this.#openSocket().catch((err: Error) => {
         this.#output.appendLine(`[Daemon] Reconnect failed: ${err.message}`);
-        this.#scheduleReconnect();
+        // connect() or disconnect() may have taken over meanwhile.
+        if (this.#connectionState === "reconnecting") this.#scheduleReconnect();
       });
     }, delay);
   }

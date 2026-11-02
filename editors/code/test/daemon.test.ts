@@ -154,3 +154,16 @@ test("isAvailable gives up quickly on a daemon that never answers", async () => 
   expect(await client.isAvailable()).toBe(false);
   expect(Date.now() - started).toBeLessThan(4000);
 });
+
+test("disconnect during connect settles the pending connect", async () => {
+  const path = socketPath();
+  await listen(path, (socket, req) => pong(socket, req.id));
+  const { client } = makeClient(path);
+
+  const connecting = client.connect();
+  client.disconnect();
+
+  await expect(connecting).rejects.toThrow();
+  await client.connect();
+  expect(client.isConnected).toBe(true);
+});
