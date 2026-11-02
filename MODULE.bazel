@@ -192,6 +192,10 @@ single_version_override(
 # Suppress warning about maven contributions from multiple modules
 # See: https://github.com/bazel-contrib/rules_jvm_external/blob/master/docs/bzlmod.md#module-dependency-layering
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+
+# Pinned so artifacts are fetched by checksum through Bazel's downloader (and
+# its repository cache) instead of resolved by coursier on every cold fetch.
+# Re-pin after changing contributions: bazel run @@rules_jvm_external++maven+unpinned_maven//:pin
 maven.install(
     known_contributing_modules = [
         "build_stack_rules_proto",
@@ -199,6 +203,7 @@ maven.install(
         "grpc-java",
         "protobuf",
     ],
+    lock_file = "//:maven_install.json",
 )
 
 # ==============================================================================
