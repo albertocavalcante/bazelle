@@ -72,8 +72,8 @@ export class BazelWorkspaces implements vscode.Disposable {
 
   /**
    * The folder a command applies to: the active editor's folder, the only
-   * folder, the only Bazel root, or the user's pick. `quiet` suppresses the
-   * "no folder" warning for automatic (non-command) use.
+   * folder, the only Bazel root, or the user's pick. `quiet` is for automatic
+   * (non-command) use: no "no folder" warning and no picker; undefined instead.
    */
   async pickFolder(options: { quiet?: boolean } = {}): Promise<string | undefined> {
     await this.ready;
@@ -91,6 +91,7 @@ export class BazelWorkspaces implements vscode.Disposable {
       case "folder":
         return choice.folder.uri.fsPath;
       case "ambiguous": {
+        if (options.quiet) return undefined;
         const picked = await vscode.window.showQuickPick(
           choice.candidates.map((folder) => ({
             label: folder.name,

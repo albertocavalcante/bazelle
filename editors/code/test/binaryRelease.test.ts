@@ -63,6 +63,9 @@ test("refuses a missing asset or a download URL outside the repository", () => {
 });
 
 test("refuses a tag that is not a safe directory name", () => {
+  expect(selectReleaseAsset(release({ tag_name: "v1.0.0+b1" }), artifact, repo).tag).toBe(
+    "v1.0.0+b1",
+  );
   expect(() => selectReleaseAsset(release({ tag_name: "../x" }), artifact, repo)).toThrow(
     "invalid tag",
   );

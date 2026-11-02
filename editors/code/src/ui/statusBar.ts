@@ -50,7 +50,10 @@ export class StatusBarManager implements vscode.Disposable {
   #updateVisibility(): void {
     const show = getConfiguration().statusBarShow;
     const visible =
-      show === "always" || (show === "onBazelWorkspace" && this.#workspaces.hasBazelRoot);
+      show === "always" ||
+      // A nested Bazel root (or a watch started anyway) still earns the item.
+      (show === "onBazelWorkspace" &&
+        (this.#workspaces.hasBazelRoot || this.#state.watchMode !== "none"));
     if (visible) this.#item.show();
     else this.#item.hide();
   }
@@ -75,7 +78,9 @@ export class StatusBarManager implements vscode.Disposable {
       md.appendMarkdown(
         `**Watch Mode:** ${this.#state.watchMode === "daemon" ? "Daemon" : "Subprocess"}\n\n`,
       );
-      md.appendMarkdown(`**Watch updates:** ${this.#state.watchUpdates} (details in output)\n\n`);
+      md.appendMarkdown(
+        `**Directories regenerated:** ${this.#state.watchUpdates} (details in output)\n\n`,
+      );
     }
     if (view.daemonConnected) md.appendMarkdown("**Daemon:** $(check) Connected\n\n");
     md.appendMarkdown("---\n\n");
@@ -104,6 +109,7 @@ export class StatusBarManager implements vscode.Disposable {
   setWatchMode(watchMode: WatchMode): void {
     // The count survives a daemon-to-subprocess fallback, not a stop.
     this.#update(watchMode === "none" ? { watchMode, watchUpdates: 0 } : { watchMode });
+    this.#updateVisibility();
   }
 
   addWatchUpdates(count: number): void {

@@ -91,6 +91,11 @@ export class BazelleService {
       this.#output.appendLine(`${tree.command} failed: ${err.message}`);
       child.kill();
     });
+    killer.on("exit", (code) => {
+      if (code === 0) return;
+      this.#output.appendLine(`${tree.command} exited with code ${code}`);
+      child.kill();
+    });
   }
 
   #spawn(args: string[], cwd: string): ChildProcess {

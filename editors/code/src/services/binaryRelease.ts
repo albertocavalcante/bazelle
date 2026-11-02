@@ -3,7 +3,7 @@
  */
 
 const SHA256 = /^[a-f0-9]{64}$/u;
-const SAFE_TAG = /^(?!\.{1,2}$)[\w.-]+$/u;
+const SAFE_TAG = /^(?!\.{1,2}$)[\w.+-]+$/u;
 
 export interface ReleaseAsset {
   tag: string;

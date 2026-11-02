@@ -212,9 +212,14 @@ export class BinaryResolver {
       headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
       signal,
     });
-    if (response.status === 404) {
-      // releases/latest ignores prereleases, so 404 means no stable release yet.
-      this.#log(`No stable release yet; using the pinned ${PINNED_NIGHTLY} build`);
+    // releases/latest ignores prereleases, so 404 means no stable release yet.
+    // A rate limit (403/429) or outage also falls back: the pin is still verified.
+    if ([403, 404, 429].includes(response.status) || response.status >= 500) {
+      this.#log(
+        response.status === 404
+          ? `No stable release yet; using the pinned ${PINNED_NIGHTLY} build`
+          : `GitHub API HTTP ${response.status}; using the pinned ${PINNED_NIGHTLY} build`,
+      );
       return {
         tag: PINNED_NIGHTLY,
         url: `https://github.com/${GITHUB_REPO}/releases/download/${PINNED_NIGHTLY}/${artifact}`,

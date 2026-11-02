@@ -63,7 +63,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Same choice as the watch command, so multi-root workspaces do not
     // silently watch whichever folder happens to be first.
     const cwd = await workspaces.pickFolder({ quiet: true });
-    if (!cwd || watch.isRunning) return;
+    if (!cwd) {
+      output.appendLine("Auto-watch skipped: no single Bazel folder; run Start Watch Mode");
+      return;
+    }
+    if (watch.isRunning) return;
     await watch.start(cwd);
   };
 
