@@ -10,8 +10,8 @@ import type { BazelleService } from "./bazelle";
 import {
   DaemonClient,
   type DaemonConnectionState,
-  type WatchEventParams,
   getDaemonConfig,
+  type WatchEventParams,
 } from "./daemon";
 
 export interface WatchEvent {

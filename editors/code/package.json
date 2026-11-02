@@ -6,7 +6,7 @@
   "publisher": "bazelle",
   "license": "Apache-2.0",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.144.0"
   },
   "categories": [
     "Programming Languages",
@@ -183,24 +183,24 @@
     "build": "bun run esbuild.ts",
     "build:prod": "bun run esbuild.ts --production",
     "watch": "bun run esbuild.ts --watch",
-    "package": "vsce package --no-dependencies",
+    "package": "bun run build:prod && vsce package --no-dependencies",
     "lint": "biome check src/ test/",
     "lint:fix": "biome check --fix src/ test/",
-    "format": "biome format --write src/",
-    "format:check": "biome format src/",
+    "format": "biome format --write src/ test/",
+    "format:check": "biome format src/ test/",
     "typecheck": "tsc --noEmit",
     "test": "bun test test/",
     "check": "bun run typecheck && bun run lint && bun run format:check && bun run test",
     "clean": "rm -rf out/ *.vsix"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "@types/bun": "^1.2.4",
-    "@types/node": "^22.13.4",
-    "@types/vscode": "^1.85.0",
-    "@vscode/vsce": "^3.2.2",
-    "esbuild": "^0.24.2",
-    "typescript": "^5.7.3"
+    "@biomejs/biome": "2.5.15",
+    "@types/bun": "1.4.3",
+    "@types/node": "24.19.2",
+    "@types/vscode": "1.144.0",
+    "@vscode/vsce": "4.1.0",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
   },
   "repository": {
     "type": "git",
