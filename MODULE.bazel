@@ -23,13 +23,7 @@ bazel_dep(name = "protobuf", version = "33.4")  # For prebuilt protoc toolchain
 bazel_dep(name = "buildifier_prebuilt", version = "8.2.1.1", dev_dependency = True)
 
 # bazel_env.bzl - Virtual environment for Bazel-managed tools
-# Not yet in BCR, so we use git_override
-bazel_dep(name = "bazel_env.bzl", version = "0.6.0", dev_dependency = True)
-git_override(
-    module_name = "bazel_env.bzl",
-    commit = "ca8da69d603f09b3691d780fe53992e36261a077",  # v0.6.0
-    remote = "https://github.com/buildbuddy-io/bazel_env.bzl.git",
-)
+bazel_dep(name = "bazel_env.bzl", version = "0.10.0", dev_dependency = True)
 
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
@@ -90,10 +84,15 @@ bazel_dep(name = "gazelle", version = "0.47.0", repo_name = "bazel_gazelle")
 
 # Override gazelle with fork that exposes runner.Run() for library usage
 # See: https://github.com/bazelbuild/bazel-gazelle/pull/1292
-git_override(
+# An archive with integrity rather than git_override: git clones bypass Bazel's
+# downloader and repository cache, so they can be neither mirrored nor verified.
+GAZELLE_FORK_COMMIT = "c16e1e6df9fcbe7bc2eb87e4d397ddb97300a2ff"
+
+archive_override(
     module_name = "gazelle",
-    commit = "c16e1e6df9fcbe7bc2eb87e4d397ddb97300a2ff",
-    remote = "https://github.com/albertocavalcante/fork-bazel-gazelle.git",
+    integrity = "sha256-ydWmqwnnDRnXKCS4J2FJkDJ3SUIO9T9lSr4NE704xq8=",
+    strip_prefix = "fork-bazel-gazelle-{}".format(GAZELLE_FORK_COMMIT),
+    urls = ["https://github.com/albertocavalcante/fork-bazel-gazelle/archive/{}.tar.gz".format(GAZELLE_FORK_COMMIT)],
 )
 
 # Go SDK configuration with nogo static analysis
