@@ -10,6 +10,7 @@ import { BinaryResolver, type ResolvedBinary } from "./services/binaryResolver";
 import { coalesce } from "./services/coalesce";
 import { WatchService } from "./services/watch";
 import { StatusBarManager } from "./ui/statusBar";
+import { BazelWorkspaces } from "./workspace";
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const version = (context.extension.packageJSON.version as string | undefined) ?? "dev";
@@ -24,7 +25,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.globalStorageUri.fsPath,
     output,
   );
-  const statusBar = new StatusBarManager(version);
+  const workspaces = new BazelWorkspaces();
+  subscriptions.push(workspaces);
+  const statusBar = new StatusBarManager(version, workspaces);
   const bazelle = new BazelleService("bazelle", output);
   const watch = new WatchService(bazelle, output);
   subscriptions.push(statusBar, watch);
@@ -38,7 +41,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       statusBar.setError(undefined);
       if (!hasBinary) {
         hasBinary = true;
-        startConfiguredWatch();
+        startConfiguredWatch().catch((err) => output.appendLine(`Auto-watch failed: ${err}`));
       }
     } else {
       statusBar.setError(
@@ -48,13 +51,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return binary;
   };
 
-  const startConfiguredWatch = () => {
+  const startConfiguredWatch = async () => {
     if (!getConfiguration().watchEnabled || watch.isRunning) return;
-    const folder = vscode.workspace.workspaceFolders?.[0];
-    if (!folder) return;
-    watch.start(folder.uri.fsPath).catch((err) => {
-      output.appendLine(`Auto-watch failed: ${err}`);
-    });
+    // Same choice as the watch command, so multi-root workspaces do not
+    // silently watch whichever folder happens to be first.
+    const cwd = await workspaces.pickFolder({ quiet: true });
+    if (!cwd || watch.isRunning) return;
+    await watch.start(cwd);
   };
 
   // Register everything before resolving the binary so commands work (and
@@ -64,6 +67,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     watch,
     output,
     statusBar,
+    workspaces,
     downloadBinary: async () => applyBinary(await resolver.download()),
   });
 

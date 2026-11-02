@@ -5,6 +5,7 @@
 import * as vscode from "vscode";
 import { getConfiguration } from "../configuration";
 import type { WatchMode } from "../services/watch";
+import type { BazelWorkspaces } from "../workspace";
 import { describeStatus, initialStatus, type StatusKind, type StatusState } from "./statusModel";
 
 const COLORS: Record<StatusKind, vscode.ThemeColor | undefined> = {
@@ -17,11 +18,16 @@ const COLORS: Record<StatusKind, vscode.ThemeColor | undefined> = {
 export class StatusBarManager implements vscode.Disposable {
   readonly #item: vscode.StatusBarItem;
   readonly #version: string;
+  readonly #workspaces: Pick<BazelWorkspaces, "hasBazelRoot" | "onDidChange">;
   readonly #disposables: vscode.Disposable[] = [];
   #state: StatusState = initialStatus;
 
-  constructor(extensionVersion: string) {
+  constructor(
+    extensionVersion: string,
+    workspaces: Pick<BazelWorkspaces, "hasBazelRoot" | "onDidChange">,
+  ) {
     this.#version = extensionVersion;
+    this.#workspaces = workspaces;
     this.#item = vscode.window.createStatusBarItem(
       "bazelle.status",
       vscode.StatusBarAlignment.Left,
@@ -34,7 +40,7 @@ export class StatusBarManager implements vscode.Disposable {
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration("bazelle.statusBar")) this.#updateVisibility();
       }),
-      vscode.workspace.onDidChangeWorkspaceFolders(() => this.#updateVisibility()),
+      workspaces.onDidChange(() => this.#updateVisibility()),
     );
 
     this.#updateVisibility();
@@ -43,11 +49,8 @@ export class StatusBarManager implements vscode.Disposable {
 
   #updateVisibility(): void {
     const show = getConfiguration().statusBarShow;
-    // The extension only activates in Bazel workspaces (or on a command), so
-    // "onBazelWorkspace" means "whenever a folder is open".
     const visible =
-      show === "always" ||
-      (show === "onBazelWorkspace" && (vscode.workspace.workspaceFolders?.length ?? 0) > 0);
+      show === "always" || (show === "onBazelWorkspace" && this.#workspaces.hasBazelRoot);
     if (visible) this.#item.show();
     else this.#item.hide();
   }

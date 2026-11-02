@@ -10,39 +10,22 @@ import type { ResolvedBinary } from "./services/binaryResolver";
 import { DaemonClient } from "./services/daemon";
 import type { WatchService } from "./services/watch";
 import type { StatusBarManager } from "./ui/statusBar";
+import type { BazelWorkspaces } from "./workspace";
 
 export interface CommandContext {
   bazelle: BazelleService;
   watch: WatchService;
   output: vscode.OutputChannel;
   statusBar: StatusBarManager;
+  workspaces: BazelWorkspaces;
   downloadBinary: () => Promise<ResolvedBinary | undefined>;
-}
-
-/**
- * The workspace folder a command applies to: the active editor's folder,
- * the only folder, or the user's pick in a multi-root workspace.
- */
-export async function pickWorkspaceFolder(): Promise<string | undefined> {
-  const folders = vscode.workspace.workspaceFolders ?? [];
-  if (folders.length === 0) {
-    void vscode.window.showWarningMessage("No workspace folder open");
-    return undefined;
-  }
-  const active = vscode.window.activeTextEditor?.document.uri;
-  const fromEditor = active && vscode.workspace.getWorkspaceFolder(active);
-  if (fromEditor) return fromEditor.uri.fsPath;
-  if (folders.length === 1) return folders[0]?.uri.fsPath;
-  const picked = await vscode.window.showWorkspaceFolderPick({
-    placeHolder: "Select the Bazel workspace folder",
-  });
-  return picked?.uri.fsPath;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function registerCommands(context: vscode.ExtensionContext, ctx: CommandContext): void {
-  const { bazelle, watch, output, statusBar } = ctx;
+  const { bazelle, watch, output, statusBar, workspaces } = ctx;
+  const pickWorkspaceFolder = () => workspaces.pickFolder();
 
   const register = (id: string, handler: () => unknown) =>
     context.subscriptions.push(vscode.commands.registerCommand(id, handler));
