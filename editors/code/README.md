@@ -10,15 +10,16 @@ VSCode integration for [Bazelle](https://github.com/albertocavalcante/bazelle), 
 - **Daemon Integration** - Connect to bazelle daemon for improved performance
 - **Starlark Syntax Highlighting** - Proper highlighting for BUILD files with gazelle directive support
 
-The optional binary download is pinned to the 2026-03-31 `nightly` release.
-The extension verifies both the archive SHA-256 and extracted executable SHA-256
-before storing it in VS Code's extension storage. If the moving `nightly` tag
-changes, update the release and digest pins in `src/services/binaryResolver.ts`
-after checking the release asset digests and downloaded files. Windows currently
-requires a configured or PATH-installed binary because that release has no
-Windows CLI archive.
+`Bazelle: Download Binary` installs the latest stable GitHub release, verified
+against the SHA-256 digest GitHub computed for the release asset, and records
+the extracted executable's SHA-256 so later activations re-verify it offline.
+While no stable release exists it falls back to the 2026-03-31 `nightly`
+build, whose archive and executable SHA-256 are pinned in
+`src/services/binaryResolver.ts`; if the moving `nightly` tag changes, that
+fallback is rejected until the pins are updated. Windows currently requires a
+configured or PATH-installed binary because no Windows CLI archive is published.
 
-To refresh a pin, inspect the release and verify the exact archive locally:
+To refresh the nightly pins, inspect the release and verify the exact archive locally:
 
 ```bash
 gh release view nightly --repo albertocavalcante/bazelle --json tagName,publishedAt,assets

@@ -5,16 +5,20 @@
  * 1. Configured path (bazelle.path setting)
  * 2. PATH lookup (bazelle command)
  * 3. Bundled binary (bin/{platform}-{arch}/bazelle)
- * 4. Download from GitHub releases (optional)
+ * 4. Download from GitHub releases (optional): the latest stable release,
+ *    verified against GitHub's SHA-256 asset digest; while no stable release
+ *    exists, the nightly archive pinned below.
  */
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { chmodSync, existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve as resolvePath, sep } from "node:path";
 import * as vscode from "vscode";
 import { extractArchive, verifyArchiveChecksum } from "./binaryArchive";
+import { type InstallManifest, parseInstallManifest, selectReleaseAsset } from "./binaryRelease";
 import { expandHome } from "./process";
 
 const GITHUB_REPO = "albertocavalcante/bazelle";
@@ -23,15 +27,28 @@ type Platform = "linux" | "darwin";
 type Arch = "amd64" | "arm64";
 type BinarySource = "configured" | "path" | "bundled" | "downloaded";
 
-// The nightly tag can move. A moved archive is rejected until these pins are
-// deliberately updated from the release asset digests.
-const PINNED_RELEASE = "nightly";
+// Fallback while no stable release exists. The nightly tag moves, so a moved
+// archive is rejected until these pins are deliberately updated from the
+// release asset digests.
+const PINNED_NIGHTLY = "nightly";
 const DOWNLOAD_TIMEOUT_MS = 120_000;
+const MANIFEST = "installed.json";
+
+interface DownloadTarget {
+  tag: string;
+  url: string;
+  archiveSha256: string;
+  /** Known binary digest; when absent it is recorded at install time. */
+  binarySha256?: string;
+}
+
+const sha256 = (data: Buffer) => createHash("sha256").update(data).digest("hex");
 
 interface PlatformConfig {
   platform: Platform;
   arch: Arch;
   binary: string;
+  /** Pins for the nightly fallback. */
   archiveSha256: string;
   binarySha256: string;
 }
@@ -110,41 +127,49 @@ export class BinaryResolver {
       return undefined;
     }
 
-    const { platform, arch, binary, archiveSha256 } = config;
-    const dir = this.#downloadDirectory(config);
-    const binaryPath = join(dir, binary);
+    const { platform, arch, binary } = config;
     const artifact = `bazelle-${platform}-${arch}.tar.gz`;
-    const url = `https://github.com/${GITHUB_REPO}/releases/download/${PINNED_RELEASE}/${artifact}`;
 
     return vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: `Downloading bazelle (${PINNED_RELEASE})...`,
+        title: "Downloading bazelle...",
         cancellable: true,
       },
-      async (_progress, token) => {
+      async (progress, token) => {
         try {
-          this.#log(`Downloading: ${url}`);
-
           const abort = new AbortController();
           token.onCancellationRequested(() => abort.abort(new Error("Download cancelled")));
-          const response = await fetch(url, {
-            signal: AbortSignal.any([abort.signal, AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)]),
-          });
+          const signal = AbortSignal.any([abort.signal, AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)]);
+
+          const target = await this.#resolveRelease(config, artifact, signal);
+          progress.report({ message: target.tag });
+          this.#log(`Downloading: ${target.url}`);
+          const response = await fetch(target.url, { signal });
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
 
           const data = Buffer.from(await response.arrayBuffer());
-          verifyArchiveChecksum(data, archiveSha256);
+          verifyArchiveChecksum(data, target.archiveSha256);
+          const dir = join(
+            this.#storagePath,
+            "bin",
+            `${target.tag}-${target.archiveSha256.slice(0, 12)}`,
+            `${platform}-${arch}`,
+          );
+          const binaryPath = join(dir, binary);
           await mkdir(this.#storagePath, { recursive: true });
           const staging = await mkdtemp(join(this.#storagePath, "download-"));
+          let binarySha256: string;
           try {
             const archivePath = join(staging, artifact);
             await writeFile(archivePath, data);
             extractArchive(archivePath, staging);
             const stagedBinary = join(staging, binary);
-            await this.#verifyBinary(stagedBinary, config);
+            const binaryData = await readFile(stagedBinary);
+            if (target.binarySha256) verifyArchiveChecksum(binaryData, target.binarySha256);
+            binarySha256 = sha256(binaryData);
             chmodSync(stagedBinary, 0o755);
             await rm(archivePath);
             await mkdir(dirname(dir), { recursive: true });
@@ -153,9 +178,16 @@ export class BinaryResolver {
           } finally {
             await rm(staging, { recursive: true, force: true });
           }
+          await this.#writeManifest({
+            tag: target.tag,
+            binary: relative(this.#storagePath, binaryPath),
+            binarySha256,
+          });
 
-          this.#log(`Downloaded to: ${binaryPath}`);
-          void vscode.window.showInformationMessage("Bazelle downloaded successfully");
+          this.#log(`Downloaded ${target.tag} to: ${binaryPath}`);
+          void vscode.window.showInformationMessage(
+            `Bazelle ${target.tag} downloaded successfully`,
+          );
 
           return { path: binaryPath, source: "downloaded" as const };
         } catch (err) {
@@ -166,6 +198,41 @@ export class BinaryResolver {
         }
       },
     );
+  }
+
+  /** The latest stable release, or the pinned nightly while none exists. */
+  async #resolveRelease(
+    config: PlatformConfig,
+    artifact: string,
+    signal: AbortSignal,
+  ): Promise<DownloadTarget> {
+    const api = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+    this.#log(`Resolving latest release: ${api}`);
+    const response = await fetch(api, {
+      headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+      signal,
+    });
+    if (response.status === 404) {
+      // releases/latest ignores prereleases, so 404 means no stable release yet.
+      this.#log(`No stable release yet; using the pinned ${PINNED_NIGHTLY} build`);
+      return {
+        tag: PINNED_NIGHTLY,
+        url: `https://github.com/${GITHUB_REPO}/releases/download/${PINNED_NIGHTLY}/${artifact}`,
+        archiveSha256: config.archiveSha256,
+        binarySha256: config.binarySha256,
+      };
+    }
+    if (!response.ok) {
+      throw new Error(`Could not resolve the latest release: HTTP ${response.status}`);
+    }
+    const asset = selectReleaseAsset(await response.json(), artifact, GITHUB_REPO);
+    return { tag: asset.tag, url: asset.url, archiveSha256: asset.sha256 };
+  }
+
+  async #writeManifest(manifest: InstallManifest): Promise<void> {
+    const path = join(this.#storagePath, "bin", MANIFEST);
+    await writeFile(`${path}.tmp`, JSON.stringify(manifest, null, 2));
+    await rename(`${path}.tmp`, path);
   }
 
   /**
@@ -253,26 +320,33 @@ export class BinaryResolver {
     return { path: bundled, source: "bundled" };
   }
 
-  #downloadDirectory(config: PlatformConfig): string {
-    return join(
-      this.#storagePath,
-      "bin",
-      `${PINNED_RELEASE}-${config.archiveSha256.slice(0, 12)}`,
-      `${config.platform}-${config.arch}`,
-    );
-  }
-
-  async #verifyBinary(binaryPath: string, config: PlatformConfig): Promise<void> {
-    const data = await readFile(binaryPath);
-    verifyArchiveChecksum(data, config.binarySha256);
-  }
-
   async #fromStorage(): Promise<ResolvedBinary | undefined> {
     if (!this.#config) return undefined;
-    const binaryPath = join(this.#downloadDirectory(this.#config), this.#config.binary);
+    const manifest = parseInstallManifest(
+      await readFile(join(this.#storagePath, "bin", MANIFEST), "utf8").catch(() => ""),
+    );
+    if (manifest) {
+      const binaryPath = resolvePath(this.#storagePath, manifest.binary);
+      if (!binaryPath.startsWith(resolvePath(this.#storagePath) + sep)) {
+        this.#log(`Ignoring install manifest pointing outside storage: ${manifest.binary}`);
+        return undefined;
+      }
+      return this.#verifiedStored(binaryPath, manifest.binarySha256);
+    }
+    // Downloads made before the manifest existed.
+    const { platform, arch, binary, archiveSha256, binarySha256 } = this.#config;
+    const legacyDir = `${PINNED_NIGHTLY}-${archiveSha256.slice(0, 12)}`;
+    const legacy = join(this.#storagePath, "bin", legacyDir, `${platform}-${arch}`, binary);
+    return this.#verifiedStored(legacy, binarySha256);
+  }
+
+  async #verifiedStored(
+    binaryPath: string,
+    expectedSha256: string,
+  ): Promise<ResolvedBinary | undefined> {
     if (!existsSync(binaryPath)) return undefined;
     try {
-      await this.#verifyBinary(binaryPath, this.#config);
+      verifyArchiveChecksum(await readFile(binaryPath), expectedSha256);
       return { path: binaryPath, source: "downloaded" };
     } catch (error) {
       this.#log(`Stored binary failed verification: ${error}`);
