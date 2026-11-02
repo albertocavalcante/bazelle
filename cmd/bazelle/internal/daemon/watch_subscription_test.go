@@ -113,6 +113,11 @@ func newTestServer() *Server {
 func call(t *testing.T, h *Handler, c *ClientConn, method string) *Response {
 	t.Helper()
 	resp := h.HandleRequest(c, &Request{JSONRPC: JSONRPCVersion, ID: ptr(int64(1)), Method: method})
+	if resp == nil {
+		// HandleRequest returns nil only for notifications; these calls carry an ID.
+		t.Fatalf("%s: no response", method)
+		return nil // for nilaway
+	}
 	if resp.Error != nil {
 		t.Fatalf("%s: unexpected error %v", method, resp.Error)
 	}
@@ -271,6 +276,7 @@ func TestServer_DisconnectStopsWatch(t *testing.T) {
 	})
 	if client == nil {
 		t.Fatal("Connect succeeded without returning a client")
+		return // for nilaway
 	}
 	if _, err := client.WatchStart(&WatchStartParams{}); err != nil {
 		t.Fatalf("WatchStart: %v", err)
