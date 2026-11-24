@@ -19,9 +19,11 @@ func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
 }
 
 // atomicWriteFunc replaces path with whatever write puts in a uniquely
-// named temp file in the same directory: write, close, rename. There is
-// deliberately no fsync: the index is a rebuildable cache. An existing target keeps
-// its current permission bits (the temp file is created 0600 and set to
+// named temp file in the same directory: write, fsync, close, rename,
+// then a best-effort fsync of the directory. The fsyncs matter even for a
+// rebuildable cache: without them a power loss can leave an empty or
+// truncated file at the final name, which JSONStore.Load reports as an
+// error. An existing target keeps its current permission bits (the temp file is created 0600 and set to
 // the target's own mode before the rename, so it is never wider than the
 // original); a new target gets perm filtered by the umask, as
 // os.WriteFile gave it. On any failure the temp file is removed and the
@@ -40,6 +42,9 @@ func atomicWriteFunc(path string, perm os.FileMode, write func(*os.File) error) 
 	if err == nil && preserve && runtime.GOOS != "windows" {
 		err = f.Chmod(keep)
 	}
+	if err == nil {
+		err = f.Sync()
+	}
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
@@ -51,6 +56,7 @@ func atomicWriteFunc(path string, perm os.FileMode, write func(*os.File) error) 
 		_ = os.Remove(tmp)
 		return fmt.Errorf("rename %s: %w", tmp, err)
 	}
+	atomicSyncDir(dir)
 	return nil
 }
 
@@ -73,4 +79,13 @@ func atomicCreateTemp(dir, base string, perm os.FileMode) (*os.File, string, err
 		return f, name, nil
 	}
 	return nil, "", fmt.Errorf("create temp in %s: too many name collisions", dir)
+}
+
+// atomicSyncDir fsyncs dir so a rename is durable. Best effort: errors
+// (including Windows refusing to open a directory) are ignored.
+func atomicSyncDir(dir string) {
+	if d, err := os.Open(dir); err == nil {
+		_ = d.Sync()
+		_ = d.Close()
+	}
 }
