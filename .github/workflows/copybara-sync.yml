@@ -133,7 +133,7 @@ jobs:
           token: ${{ steps.eukia.outputs.token }}
 
       - name: Run Copybara
-        uses: albertocavalcante/actions/run-copybara@main
+        uses: albertocavalcante/actions/run-copybara@15b779ac6b45f756c3579473fd1a9dce71f93fe3 # main (no release tag)
         with:
           config-file: infra/copybara/copy.bara.sky
           workflow: push-kotlin
@@ -169,7 +169,7 @@ jobs:
           token: ${{ steps.eukia.outputs.token }}
 
       - name: Run Copybara
-        uses: albertocavalcante/actions/run-copybara@main
+        uses: albertocavalcante/actions/run-copybara@15b779ac6b45f756c3579473fd1a9dce71f93fe3 # main (no release tag)
         with:
           config-file: infra/copybara/copy.bara.sky
           workflow: push-python
@@ -205,7 +205,7 @@ jobs:
           token: ${{ steps.eukia.outputs.token }}
 
       - name: Run Copybara
-        uses: albertocavalcante/actions/run-copybara@main
+        uses: albertocavalcante/actions/run-copybara@15b779ac6b45f756c3579473fd1a9dce71f93fe3 # main (no release tag)
         with:
           config-file: infra/copybara/copy.bara.sky
           workflow: push-groovy
