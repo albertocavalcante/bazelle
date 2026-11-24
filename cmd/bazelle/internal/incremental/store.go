@@ -90,16 +90,10 @@ func (s *JSONStore) Save(idx *Index) error {
 		return fmt.Errorf("failed to marshal index: %w", err)
 	}
 
-	// Write to temp file first for atomic update
-	tmpPath := s.path + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
-		return fmt.Errorf("failed to write temp state file: %w", err)
-	}
-
-	// Rename temp file to actual file (atomic on POSIX)
-	if err := os.Rename(tmpPath, s.path); err != nil {
-		_ = os.Remove(tmpPath) // Clean up temp file
-		return fmt.Errorf("failed to rename state file: %w", err)
+	// Unique temp file + rename, so concurrent saves cannot clobber each
+	// other's temp file and a failed save leaves no temp behind.
+	if err := atomicWriteFile(s.path, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write state file: %w", err)
 	}
 
 	return nil

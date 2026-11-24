@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "incremental",
     srcs = [
+        "atomicwrite.go",
         "changeset.go",
         "entry.go",
         "hash.go",
@@ -21,6 +22,9 @@ go_library(
 
 go_test(
     name = "incremental_test",
-    srcs = ["incremental_test.go"],
+    srcs = [
+        "atomicwrite_test.go",
+        "incremental_test.go",
+    ],
     embed = [":incremental"],
 )
